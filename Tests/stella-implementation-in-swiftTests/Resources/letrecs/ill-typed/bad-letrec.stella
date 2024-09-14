@@ -3,5 +3,5 @@ language core;
 extend with #letrec-bindings;
 
 fn main(n : Nat) -> Nat {
-  return letrec bad = n in if bad then bad else succ(bad);
+  return let bad = n in if bad then bad else succ(bad)
 }

@@ -85,11 +85,17 @@ final class stella_implementation_in_swiftTests: XCTestCase {
       checkIllTyped(filepaths: filepaths)
   }
 
-  func testLetBindingsStructuralPatterns() throws {
-      let resourcePath = "\(Bundle.module.resourcePath!)/Resources"
-      let filepaths = filepaths(in: resourcePath + "/let-bindings/ill-typed")
-      checkIllTyped(filepaths: filepaths)
-  }
+//  func testLetBindingsStructuralPatternsWellTyped() throws {
+//      let resourcePath = "\(Bundle.module.resourcePath!)/Resources"
+//      let filepaths = filepaths(in: resourcePath + "/let-bindings/structural-patterns/well-typed")
+//      checkWellTyped(filepaths: filepaths)
+//  }
+//
+//  func testLetBindingsStructuralPatternsIllTyped() throws {
+//      let resourcePath = "\(Bundle.module.resourcePath!)/Resources"
+//      let filepaths = filepaths(in: resourcePath + "/let-bindings/structural-patterns/ill-typed")
+//      checkIllTyped(filepaths: filepaths)
+//  }
 
  // MARK: - Pairs
 

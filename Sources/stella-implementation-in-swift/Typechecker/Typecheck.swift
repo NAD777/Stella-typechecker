@@ -11,6 +11,7 @@ enum TypecheckError: Error {
   case missingMain
   case requiredReturnType
   case onlyOneArgument
+  case notImplemented
   case typeError(description: TypeErrorDescription)
 }
 
@@ -44,6 +45,8 @@ extension TypecheckError: LocalizedError {
         "Exactly one argument expected in function declaration"
       case .typeError(description: let description):
         description.errorDescription
+      case .notImplemented:
+        "Not implemented"
     }
   }
 }
@@ -430,7 +433,16 @@ func typecheck(expr: Expr, context: Context) throws -> StellaType {
       return thenExprType
 
     case .let(let patternBindings, let body):
-      assertionFailure("Not implemented")
+      guard let pattern = patternBindings.first,
+            case .var(let name) = pattern.pat
+      else {
+        throw TypecheckError.notImplemented
+      }
+
+      let type = try typecheck(expr: pattern.rhs, context: context)
+      let newContext = try context.add(name: name, type: type)
+
+      return try typecheck(expr: body, context: newContext)
 
     case .letRec(let patternBindings, let body):
       assertionFailure("Not implemented")
