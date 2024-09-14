@@ -28,7 +28,83 @@ final class stella_implementation_in_swiftTests: XCTestCase {
     let filepaths = filepaths(in: resourcePath + "/development/ill-typed")
     checkIllTyped(filepaths: filepaths)
   }
-  
+
+  // MARK: - Tuples
+
+  func testTupleWellTyped() throws {
+      let resourcePath = "\(Bundle.module.resourcePath!)/Resources"
+      let filepaths = filepaths(in: resourcePath + "/tuples/well-typed")
+      checkWellTyped(filepaths: filepaths)
+  }
+
+  func testTupleIllTyped() throws {
+      let resourcePath = "\(Bundle.module.resourcePath!)/Resources"
+      let filepaths = filepaths(in: resourcePath + "/tuples/ill-typed")
+      checkIllTyped(filepaths: filepaths)
+  }
+
+  // MARK: - Let Recs
+
+  func testLetRecsWellTyped() throws {
+      let resourcePath = "\(Bundle.module.resourcePath!)/Resources"
+      let filepaths = filepaths(in: resourcePath + "/letrecs/well-typed")
+      checkWellTyped(filepaths: filepaths)
+  }
+
+  func testLetRecsIllTyped() throws {
+      let resourcePath = "\(Bundle.module.resourcePath!)/Resources"
+      let filepaths = filepaths(in: resourcePath + "/letrecs/ill-typed")
+      checkIllTyped(filepaths: filepaths)
+  }
+
+  // MARK: - records
+
+  func testRecordsWellTyped() throws {
+      let resourcePath = "\(Bundle.module.resourcePath!)/Resources"
+      let filepaths = filepaths(in: resourcePath + "/records/well-typed")
+      checkWellTyped(filepaths: filepaths)
+  }
+
+  func testRecordsIllTyped() throws {
+      let resourcePath = "\(Bundle.module.resourcePath!)/Resources"
+      let filepaths = filepaths(in: resourcePath + "/records/ill-typed")
+      checkIllTyped(filepaths: filepaths)
+  }
+
+  // MARK: - let bindings
+
+  func testLetBindingsWellTyped() throws {
+      let resourcePath = "\(Bundle.module.resourcePath!)/Resources"
+      let filepaths = filepaths(in: resourcePath + "/let-bindings/well-typed")
+      checkWellTyped(filepaths: filepaths)
+  }
+
+  func testLetBindingsIllTyped() throws {
+      let resourcePath = "\(Bundle.module.resourcePath!)/Resources"
+      let filepaths = filepaths(in: resourcePath + "/let-bindings/ill-typed")
+      checkIllTyped(filepaths: filepaths)
+  }
+
+  func testLetBindingsStructuralPatterns() throws {
+      let resourcePath = "\(Bundle.module.resourcePath!)/Resources"
+      let filepaths = filepaths(in: resourcePath + "/let-bindings/ill-typed")
+      checkIllTyped(filepaths: filepaths)
+  }
+
+ // MARK: - Pairs
+
+ func testPairsWellTyped() throws {
+     let resourcePath = "\(Bundle.module.resourcePath!)/Resources"
+     let filepaths = filepaths(in: resourcePath + "/pairs/well-typed")
+     checkWellTyped(filepaths: filepaths)
+ }
+
+  func testPairsIllTyped() throws {
+      let resourcePath = "\(Bundle.module.resourcePath!)/Resources"
+      let filepaths = filepaths(in: resourcePath + "/pairs/ill-typed")
+      checkIllTyped(filepaths: filepaths)
+  }
+
   // MARK: - Private Helpers
   
   private func checkWellTyped(filepaths: [String]) {

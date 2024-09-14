@@ -29,8 +29,6 @@ struct Context {
   private var contextEntries: [ContextEntriesName: StellaType] = [:] // contains funcs and variables
 
   func add(name: ContextEntriesName, type: StellaType) throws -> Self {
-    try assertNotPresent(for: name)
-
     var newContext = self
     newContext.contextEntries[name] = type
 

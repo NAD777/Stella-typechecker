@@ -16,3 +16,19 @@ extension Array where Element: Equatable {
     return self.dropFirst().allSatisfy { $0 == firstElement }
   }
 }
+
+
+extension Array where Element: Hashable {
+  var allElementsUnique: Bool {
+    var seen: [Element: Bool] = [:]
+
+    for element in self {
+      if seen[element] != nil {
+        return false
+      }
+      seen[element] = true
+    }
+
+    return true
+  }
+}

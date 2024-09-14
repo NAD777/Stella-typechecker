@@ -42,7 +42,7 @@ extension StellaType: Equatable {
       case let (.record(lhs), .record(rhs)):
         let st1 = Set(lhs)
         let st2 = Set(rhs)
-        return st1.isSubset(of: st2)
+        return st1 == st2
 
       default:
         return false

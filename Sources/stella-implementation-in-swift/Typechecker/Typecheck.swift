@@ -103,10 +103,36 @@ func typecheck(decl: Decl, context: Context) throws -> Context {
 func typecheck(expr: Expr, context: Context) throws -> StellaType {
   switch expr {
     case .dotRecord(let expr, let label):
-      assertionFailure("Not implemented")
+      let recordType = try typecheck(expr: expr, context: context)
+      guard case let .record(fieldTypes) = recordType else {
+          throw TypecheckError.typeError(
+            description: .custom("DotRecord operator must be applied to record type, got \(recordType.description)")
+          )
+      }
+
+      guard let fieldType = fieldTypes.first(where: { $0.label == label }) else {
+          throw TypecheckError.typeError(
+            description: .custom("No label \(label) in record \(recordType.description)")
+          )
+      }
+
+      return fieldType.type
 
     case .dotTuple(let expr, let index):
-      assertionFailure("Not implemented")
+      let tupleType = try typecheck(expr: expr, context: context)
+      guard case let .tuple(types) = tupleType else {
+          throw TypecheckError.typeError(
+              description: .custom("DotTuple operator must be applied to pairs or tuples, got \(tupleType.description)")
+          )
+      }
+
+      guard 0 < index, index <= types.count else {
+          throw TypecheckError.typeError(
+              description: .custom("Invalid index in dot Tuple")
+          )
+      }
+
+      return types[index - 1]
 
     case .constTrue:
       return .bool
@@ -319,7 +345,19 @@ func typecheck(expr: Expr, context: Context) throws -> StellaType {
       return try .tuple(types: exprs.map { try typecheck(expr: $0, context: context) })
 
     case .record(let bindings):
-      assertionFailure("Not implemented")
+      let recordNames = bindings.map(\.name)
+      guard recordNames.allElementsUnique == true else {
+        throw TypecheckError.typeError(
+          description: .custom("Duplicate record type fields")
+        )
+      }
+
+      return .record(
+          fieldTypes: try bindings.map { RecordFieldType(
+              label: $0.name,
+              type: try typecheck(expr: $0.rhs, context: context)
+          )}
+      )
 
     case .variant(let label, let rhs):
       assertionFailure("Not implemented")
