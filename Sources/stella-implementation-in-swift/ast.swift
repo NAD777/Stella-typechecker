@@ -200,7 +200,7 @@ public struct PatternBinding {
 
 // MARK: - Types
 
-public indirect enum StellaType {
+public indirect enum StellaType: Hashable {
     
     case bool
     case nat
@@ -219,14 +219,14 @@ public indirect enum StellaType {
     
 }
 
-public struct RecordFieldType {
+public struct RecordFieldType: Hashable {
     
     var label: String
     var type: StellaType
     
 }
 
-public struct VariantFieldType {
+public struct VariantFieldType: Hashable {
     
     var label: String
     var type: StellaType?
