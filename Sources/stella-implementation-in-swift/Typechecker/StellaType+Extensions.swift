@@ -37,7 +37,7 @@ extension StellaType: Equatable {
         return lhs == rhs
 
       case let (.tuple(lhs), .tuple(types: rhs)):
-        return lhs.count == rhs.count ? lhs.elementsEqual(rhs) : false
+        return lhs == rhs
 
       case let (.record(lhs), .record(rhs)):
         let st1 = Set(lhs)
@@ -46,6 +46,41 @@ extension StellaType: Equatable {
 
       default:
         return false
+    }
+  }
+}
+
+extension StellaType: CustomStringConvertible {
+  public var description: String {
+    switch self {
+      case let .fun(parameterTypes, returnType):
+        return "fun(\(parameterTypes[0].description)) -> (\(returnType.description))"
+      case let .forAll(types, type):
+        return "forall \(String(types.reduce("(") { $0 + $1.description + ","}.dropLast()))).\(type.description)"
+      case .bool:
+        return "Bool"
+      case .nat:
+        return "Nat"
+      case .unit:
+        return "Unit"
+      case let .sum(lhs, rhs):
+        return "(\(lhs.description)) + (\(rhs.description))"
+      case let .tuple(types):
+        return String(types.reduce("{") { $0 + $1.description + ","}.dropLast()) + "}"
+      case let .ref(type):
+        return "Ref \(type.description)"
+      case .top:
+        return "Top"
+      case .bot:
+        return "Bot"
+      case let .list(types):
+        return String(types.reduce("[") { $0 + $1.description + ","}.dropLast()) + "]"
+      case let .record(fieldTypes):
+        return String(fieldTypes.reduce("{") { $0 + $1.label + " = " + $1.type.description + ","}.dropLast()) + "}"
+      case .variant:
+        fatalError("not implemented")
+      case let .var(name):
+        return "var(\(name))"
     }
   }
 }

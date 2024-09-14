@@ -10,17 +10,26 @@ import Foundation
 typealias ContextEntriesName = String
 
 enum ContextError: Error {
-  case ContextEntriesAlreadyExist
-  case ContextEntriesDoesNotExist
+  case contextEntryAlreadyExist(name: String)
+  case contextEntryDoesNotExist(name: String)
+}
+
+extension ContextError: LocalizedError {
+  var errorDescription: String? {
+    switch self {
+      case .contextEntryAlreadyExist(let name):
+        "Context entrie with name \(name) already exist"
+      case .contextEntryDoesNotExist(let name):
+        "Context entries with name \(name) does not exist"
+    }
+  }
 }
 
 struct Context {
-  private var contextEntries: [ContextEntriesName: StellaType] // contains funcs and variables
+  private var contextEntries: [ContextEntriesName: StellaType] = [:] // contains funcs and variables
 
   func add(name: ContextEntriesName, type: StellaType) throws -> Self {
-    guard contextEntries[name] == nil else {
-      throw ContextError.ContextEntriesAlreadyExist
-    }
+    try assertNotPresent(for: name)
 
     var newContext = self
     newContext.contextEntries[name] = type
@@ -30,9 +39,35 @@ struct Context {
 
   func get(by name: ContextEntriesName) throws -> StellaType {
     guard let type = contextEntries[name] else {
-      throw ContextError.ContextEntriesDoesNotExist
+      throw ContextError.contextEntryDoesNotExist(name: name)
     }
 
     return type
   }
 }
+
+extension Context {
+  func add(paramDecls: [ParamDecl]) throws -> Self {
+    var newContext = Context()
+
+    try paramDecls.forEach { decl in
+      newContext = try newContext.add(name: decl.name, type: decl.type)
+    }
+
+    return newContext
+  }
+}
+
+
+extension Context {
+  var isMainPresent: Bool {
+    contextEntries["main"] != nil
+  }
+
+  func assertNotPresent(for name: ContextEntriesName) throws {
+    guard contextEntries[name] == nil else {
+      throw ContextError.contextEntryAlreadyExist(name: name)
+    }
+  }
+}
+
