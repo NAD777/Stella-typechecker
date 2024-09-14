@@ -11,7 +11,26 @@ enum TypecheckError: Error {
   case missingMain
   case requiredReturnType
   case onlyOneArgument
-  case typeError(description: String)
+  case typeError(description: TypeErrorDescription)
+}
+
+enum TypeErrorDescription {
+  case custom(String)
+  case listContainsDifferentTypes
+  case typeMismatch(expectedType: StellaType, givenType: StellaType)
+}
+
+extension TypeErrorDescription: LocalizedError {
+  var errorDescription: String? {
+    switch self {
+      case .custom(let string):
+        return string
+      case .typeMismatch(let expectedType, let givenType):
+        return "Type mismatch: expected type \(expectedType.description), but \(givenType) was provided"
+      case .listContainsDifferentTypes:
+        return "The list must contain values of the same type"
+    }
+  }
 }
 
 extension TypecheckError: LocalizedError {
@@ -24,7 +43,7 @@ extension TypecheckError: LocalizedError {
       case .onlyOneArgument:
         "Exactly one argument expected in function declaration"
       case .typeError(description: let description):
-        description
+        description.errorDescription
     }
   }
 }
@@ -32,7 +51,7 @@ extension TypecheckError: LocalizedError {
 public func typecheck(program: Program) throws {
   var context = Context()
 
-  program.decls.forEach { context = try! typecheck(decl: $0, context: context) }
+  try program.decls.forEach { context = try typecheck(decl: $0, context: context) }
 
   guard context.isMainPresent else {
     throw TypecheckError.missingMain
@@ -56,10 +75,10 @@ func typecheck(decl: Decl, context: Context) throws -> Context {
 
       guard returnType == obtainedType else {
         throw TypecheckError.typeError(
-          description: "Return type of the function <\(name)> should be \(returnType!.description), got \(obtainedType.description)"
+          description: .custom("Return type of the function <\(name)> should be \(returnType!.description), got \(obtainedType.description)")
         )
       }
-      
+
       return returnedContext
     case let .declFunGeneric(_, name, _, _, _, _, _, _):
       print("decl function generic, name = \(name)")
@@ -90,25 +109,25 @@ func typecheck(expr: Expr, context: Context) throws -> StellaType {
       assertionFailure("Not implemented")
 
     case .constTrue:
-      assertionFailure("Not implemented")
+      return .bool
 
     case .constFalse:
-      assertionFailure("Not implemented")
+      return .bool
 
     case .constUnit:
-      assertionFailure("Not implemented")
+      return .unit
 
-    case .constInt(let value):
-      assertionFailure("Not implemented")
+    case .constInt:
+      return .nat
 
     case .constMemory(let mem):
       assertionFailure("Not implemented")
 
     case .var(let name):
-      assertionFailure("Not implemented")
+      return try context.get(by: name)
 
     case .panic:
-      assertionFailure("Not implemented")
+      return .bot
 
     case .throw(let expr):
       assertionFailure("Not implemented")
@@ -138,19 +157,67 @@ func typecheck(expr: Expr, context: Context) throws -> StellaType {
       assertionFailure("Not implemented")
 
     case .succ(let n):
-      assertionFailure("Not implemented")
+      let type = try typecheck(expr: n, context: context)
+      guard type == .nat else {
+        throw TypecheckError.typeError(description: .typeMismatch(expectedType: .nat, givenType: type))
+      }
+      return .nat
 
     case .logicNot(let expr):
-      assertionFailure("Not implemented")
+      let type = try typecheck(expr: expr, context: context)
+
+      guard type == .bool else {
+        throw TypecheckError.typeError(description: .typeMismatch(expectedType: .bool, givenType: type))
+      }
+
+      return .bool
 
     case .natPred(let n):
       assertionFailure("Not implemented")
 
     case .natIsZero(let n):
-      assertionFailure("Not implemented")
+      let type = try typecheck(expr: n, context: context)
+      guard type == .nat else {
+        throw TypecheckError.typeError(description: .typeMismatch(expectedType: .nat, givenType: type))
+      }
+      return .bool
 
     case .natRec(let n, let initial, let step):
-      assertionFailure("Not implemented")
+      //    The typing of Nat::rec(n, initial, step) happens as follows:
+      //
+      //    n has to be of type Nat;
+      //    initial can be of any type T;
+      //    step has to be of type fn(Nat) -> (fn(T) -> T);
+
+      let typeN = try typecheck(expr: n, context: context)
+      guard typeN == .nat else {
+        throw TypecheckError.typeError(
+          description: .custom("First parameter in <Nat::rec> is expected to be Nat, got \(typeN.description)")
+        )
+      }
+
+      let typeStep = try typecheck(expr: step, context: context)
+      guard
+        case let .fun(parameterTypesStep, returnTypeStep) = typeStep,
+        parameterTypesStep[0] == .nat
+      else {
+        throw TypecheckError.typeError(
+          description: .custom("Third parameter in <Nat::rec> is expected to be Fun(Nat) -> (Fun(T) -> T), got \(typeStep.description)")
+        )
+      }
+
+      let typeInitial = try typecheck(expr: initial, context: context)
+      guard
+        case let .fun(lambdaTypes, lambdaReturnType) = returnTypeStep,
+        lambdaTypes[0] == typeInitial,
+        lambdaReturnType == typeInitial
+      else {
+        throw TypecheckError.typeError(
+          description: .custom("Return type of the third parameter in <Nat::rec> is expected to be Fun(\(typeInitial.description)) -> \(typeInitial.description), got \(typeStep.description)")
+        )
+      }
+
+      return typeInitial
 
     case .fix(let expr):
       assertionFailure("Not implemented")
@@ -162,34 +229,73 @@ func typecheck(expr: Expr, context: Context) throws -> StellaType {
       assertionFailure("Not implemented")
 
     case .application(let expr, let exprs):
-      assertionFailure("Not implemented")
+      guard exprs.count == 1 else {
+        throw TypecheckError.onlyOneArgument
+      }
+
+      let exprType = try typecheck(expr: expr, context: context)
+      guard case let .fun(parameterTypes, returnType) = exprType else {
+        throw TypecheckError.typeError(
+          description: .custom("Expected TypeFun, got \(exprType.description)")
+        )
+      }
+
+      let argType = try typecheck(expr: exprs[0], context: context)
+
+      guard parameterTypes[0] == argType else {
+        throw TypecheckError.typeError(
+          description: .custom("Expected type \(parameterTypes[0].description) but got \(argType.description)")
+        )
+      }
+
+      return returnType
 
     case .typeApplication(let expr, let types):
       assertionFailure("Not implemented")
 
-    case .multiply(let left, let right):
-      assertionFailure("Not implemented")
+    case .multiply(let left, let right),
+        .divide(let left, let right),
+        .subtract(let left, let right),
+        .add(let left, let right):
+      let typeLeft = try typecheck(expr: left, context: context)
+      let typeRight = try typecheck(expr: right, context: context)
 
-    case .divide(let left, let right):
-      assertionFailure("Not implemented")
+      guard typeLeft == .nat else {
+        throw TypecheckError.typeError(description: .typeMismatch(expectedType: .nat, givenType: typeLeft))
+      }
+      guard typeRight == .nat  else {
+        throw TypecheckError.typeError(description: .typeMismatch(expectedType: .nat, givenType: typeRight))
+      }
 
-    case .logicAnd(let left, let right):
-      assertionFailure("Not implemented")
+      return .nat
 
-    case .add(let left, let right):
-      assertionFailure("Not implemented")
+    case .logicAnd(let left, let right),
+        .logicOr(let left, let right):
+      let typeLeft = try typecheck(expr: left, context: context)
+      let typeRight = try typecheck(expr: right, context: context)
 
-    case .subtract(let left, let right):
-      assertionFailure("Not implemented")
+      guard typeLeft == .bool else {
+        throw TypecheckError.typeError(description: .typeMismatch(expectedType: .bool, givenType: typeLeft))
+      }
+      guard typeRight == .bool  else {
+        throw TypecheckError.typeError(description: .typeMismatch(expectedType: .bool, givenType: typeRight))
+      }
 
-    case .logicOr(let left, let right):
-      assertionFailure("Not implemented")
+      return .bool
 
     case .ref(let expr):
-      assertionFailure("Not implemented")
+      let type = try typecheck(expr: expr, context: context)
+
+      return .ref(type: type)
 
     case .deref(let expr):
-      assertionFailure("Not implemented")
+      let type = try typecheck(expr: expr, context: context)
+
+      guard case let .ref(refType) = type else {
+        throw TypecheckError.typeError(
+          description: .custom("Can dereference only Ref type, got \(type.description)")
+        )
+      }
 
     case .typeAsc(let expr, let type):
       assertionFailure("Not implemented")
@@ -198,10 +304,19 @@ func typecheck(expr: Expr, context: Context) throws -> StellaType {
       assertionFailure("Not implemented")
 
     case .abstraction(let paramDecls, let returnExpr):
-      assertionFailure("Not implemented")
+      guard paramDecls.count == 1 else {
+        throw TypecheckError.onlyOneArgument
+      }
+
+      let newContext = try context
+        .add(paramDecls: paramDecls)
+
+      let exprResultType = try typecheck(expr: returnExpr, context: newContext)
+
+      return .fun(parameterTypes: paramDecls.map(\.type), returnType: exprResultType)
 
     case .tuple(let exprs):
-      assertionFailure("Not implemented")
+      return try .tuple(types: exprs.map { try typecheck(expr: $0, context: context) })
 
     case .record(let bindings):
       assertionFailure("Not implemented")
@@ -213,31 +328,68 @@ func typecheck(expr: Expr, context: Context) throws -> StellaType {
       assertionFailure("Not implemented")
 
     case .list(let exprs):
-      assertionFailure("Not implemented")
+      let listTypes = try exprs.map { try typecheck(expr: $0, context: context) }
 
-    case .lessThan(let left, let right):
-      assertionFailure("Not implemented")
+      guard listTypes.allElementsEqual == true else {
+        throw TypecheckError.typeError(description: .listContainsDifferentTypes)
+      }
 
-    case .lessThanOrEqual(let left, let right):
-      assertionFailure("Not implemented")
+      return .list(types: listTypes)
 
-    case .greaterThan(let left, let right):
-      assertionFailure("Not implemented")
+    case .lessThan(let left, let right),
+        .lessThanOrEqual(let left, let right),
+        .greaterThanOrEqual(let left, let right),
+        .greaterThan(let left, let right):
+      let typeLeft = try typecheck(expr: left, context: context)
+      let typeRight = try typecheck(expr: right, context: context)
 
-    case .greaterThanOrEqual(let left, let right):
-      assertionFailure("Not implemented")
+      guard typeLeft == .nat else {
+        throw TypecheckError.typeError(description: .typeMismatch(expectedType: .nat, givenType: typeLeft))
+      }
+      guard typeRight == .nat  else {
+        throw TypecheckError.typeError(description: .typeMismatch(expectedType: .nat, givenType: typeRight))
+      }
 
-    case .equal(let left, let right):
-      assertionFailure("Not implemented")
+      return .bool
 
-    case .notEqual(let left, let right):
-      assertionFailure("Not implemented")
+    case .notEqual(let left, let right),
+        .equal(let left, let right):
+      let leftType = try typecheck(expr: left, context: context)
+      let rightType = try typecheck(expr: right, context: context)
+
+      guard leftType == rightType else {
+        throw TypecheckError.typeError(
+          description: .custom("Lhs and rhs of equal exp must be the same type, got \(leftType.description) and  \(rightType.description)")
+        )
+      }
+
+      return .bool
 
     case .assign(let lhs, let rhs):
-      assertionFailure("Not implemented")
+      _ = try typecheck(expr: lhs, context: context)
+      _ = try typecheck(expr: rhs, context: context)
+
+      return .unit
 
     case .if(let condition, let thenExpr, let elseExpr):
-      assertionFailure("Not implemented")
+      let conditionType = try typecheck(expr: condition, context: context)
+
+      guard conditionType == .bool else {
+        throw TypecheckError.typeError(
+          description: .custom("If condition must have Bool type but \(conditionType.description) was provided")
+        )
+      }
+
+      let thenExprType = try typecheck(expr: thenExpr, context: context)
+      let elseExprType = try typecheck(expr: elseExpr, context: context)
+
+      guard thenExprType == elseExprType else {
+        throw TypecheckError.typeError(
+          description: .custom("If's then and else blocks must have the same type")
+        )
+      }
+
+      return thenExprType
 
     case .let(let patternBindings, let body):
       assertionFailure("Not implemented")
@@ -251,6 +403,5 @@ func typecheck(expr: Expr, context: Context) throws -> StellaType {
     case .sequence(let expr1, let expr2):
       assertionFailure("Not implemented")
   }
-  return .bool
+  fatalError("Not implemented")
 }
-

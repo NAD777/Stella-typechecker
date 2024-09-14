@@ -48,7 +48,7 @@ struct Context {
 
 extension Context {
   func add(paramDecls: [ParamDecl]) throws -> Self {
-    var newContext = Context()
+    var newContext = self
 
     try paramDecls.forEach { decl in
       newContext = try newContext.add(name: decl.name, type: decl.type)
