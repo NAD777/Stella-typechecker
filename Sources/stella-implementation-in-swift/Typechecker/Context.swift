@@ -54,6 +54,31 @@ extension Context {
 
     return newContext
   }
+
+  // used for top level function
+  func add(decls: [Decl]) throws -> Self {
+    var newContext = self
+
+    try decls.forEach { decl in
+      switch decl {
+        case .declFun(let annotations, let name, let paramDecls, let returnType, let throwTypes, let localDecls, let returnExpr):
+          try newContext.assertNotPresent(for: name)
+          let functionType = try typeForFunction(paramDecls: paramDecls, returnType: returnType)
+          newContext = try newContext
+            .add(name: name, type: functionType)
+
+        case .declFunGeneric(let annotations, let name, let generics, let paramDecls, let returnType, let throwTypes, let localDecls, let returnExpr):
+          assertionFailure("Not implemented")
+        case .declTypeAlias(let name, let type):
+          assertionFailure("Not implemented")
+        case .declExceptionType(let exceptionType):
+          assertionFailure("Not implemented")
+        case .declExceptionVariant(let name, let variantType):
+          assertionFailure("Not implemented")
+      }
+    }
+    return newContext
+  }
 }
 
 

@@ -55,33 +55,27 @@ extension TypecheckError: LocalizedError {
 }
 
 public func typecheck(program: Program) throws {
-  var context = Context()
+  let context = try Context()
+    .add(decls: program.decls)
 
-  try program.decls.forEach { context = try typecheck(decl: $0, context: context) }
+  try program.decls.forEach { try typecheck(decl: $0, context: context) }
 
   guard context.isMainPresent else {
     throw TypecheckError.missingMain
   }
 }
 
-func typecheck(decl: Decl, context: Context) throws -> Context {
+func typecheck(decl: Decl, context: Context) throws {
   switch decl {
     case let .declFun(_, name, paramDecls, returnType, _, _, returnExpr):
       print("decl function, name = \(name)")
-      try context.assertNotPresent(for: name)
-      let functionType = try typeForFunction(paramDecls: paramDecls, returnType: returnType)
-
-      let returnedContext = try context
-        .add(name: name, type: functionType)
-        
-      let newContext = try returnedContext
+      let newContext = try context
         .add(paramDecls: paramDecls)
 
       let obtainedType = try typecheck(expr: returnExpr, expected: returnType, context: newContext)
 
       try assertEqual(expected: returnType, given: obtainedType)
 
-      return returnedContext
     case let .declFunGeneric(_, name, _, _, _, _, _, _):
       print("decl function generic, name = \(name)")
       assertionFailure("Not implemented")
@@ -98,7 +92,6 @@ func typecheck(decl: Decl, context: Context) throws -> Context {
       print("decl exception variant, name = \(name)")
       assertionFailure("Not implemented")
   }
-  return context // TODO: make it right
 }
 
 
