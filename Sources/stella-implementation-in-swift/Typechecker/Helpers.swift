@@ -18,3 +18,11 @@ func typeForFunction(paramDecls: [ParamDecl], returnType: StellaType?) throws ->
   
   return .fun(parameterTypes: paramDecls.map { $0.type }, returnType: returnType)
 }
+
+func assertEqual(expected: StellaType?, given: StellaType) throws {
+  guard let expected else { return }
+
+  guard expected == given else {
+    throw TypecheckError.typeError(description: .typeMismatch(expectedType: expected, givenType: given))
+  }
+}

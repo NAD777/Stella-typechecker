@@ -21,8 +21,8 @@ extension StellaType: Equatable {
         (.unit, .unit):
         return true
 
-      case let (.var(name1), .var(name2)):
-        return name1 == name2
+      case let (.var(lhs), .var(rhs)):
+        return lhs == rhs
 
       case let (.forAll(types1, type1), .forAll(types2, type2)):
         return Set(types1) == Set(types2) && type1 == type2
@@ -43,6 +43,13 @@ extension StellaType: Equatable {
         let st1 = Set(lhs)
         let st2 = Set(rhs)
         return st1 == st2
+
+      case let (.list(lhs), .list(rhs)):
+        return lhs == rhs
+
+      case let (.variant(lhs), .var(rhs)):
+        assertionFailure("Not implemented")
+        return false
 
       default:
         return false
