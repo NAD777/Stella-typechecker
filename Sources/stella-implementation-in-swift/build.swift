@@ -46,8 +46,10 @@ public func buildType(ctx: stellaParser.StellatypeContext) throws -> StellaType 
         )
         
     case let ctx as stellaParser.TypeListContext:
-      return try buildType(ctx: ctx.type_)
-        
+        return try .list(
+              type: buildType(ctx: ctx.type_)
+          )
+
     case let ctx as stellaParser.TypeRecordContext:
         return try .record(
             fieldTypes: ctx.fieldTypes.map{

@@ -209,7 +209,7 @@ public indirect enum StellaType: Hashable {
     case forAll(types: [String], type: StellaType)
     case sum(left: StellaType, right: StellaType)
     case tuple(types: [StellaType])
-    case list(types: [StellaType])
+    case list(type: StellaType)
     case record(fieldTypes: [RecordFieldType])
     case variant(fieldTypes: [VariantFieldType])
     case top

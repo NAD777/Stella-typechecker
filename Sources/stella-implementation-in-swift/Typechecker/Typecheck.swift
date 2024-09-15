@@ -18,6 +18,7 @@ enum TypecheckError: Error {
 enum TypeErrorDescription {
   case custom(String)
   case listContainsDifferentTypes
+  case expectedList
   case typeMismatch(expectedType: StellaType, givenType: StellaType)
 }
 
@@ -30,6 +31,8 @@ extension TypeErrorDescription: LocalizedError {
         return "Type mismatch: expected type \(expectedType.description), but \(givenType) was provided"
       case .listContainsDifferentTypes:
         return "The list must contain values of the same type"
+      case .expectedList:
+        return "Expected list type"
     }
   }
 }
@@ -177,7 +180,12 @@ func typecheck(expr: Expr, context: Context) throws -> StellaType {
       assertionFailure("Not implemented")
 
     case .listHead(let list):
-      assertionFailure("Not implemented")
+      let listType = try typecheck(expr: list, context: context)
+      guard case .list(let type) = listType else {
+        throw TypecheckError.typeError(description: .expectedList)
+      }
+
+      return type
 
     case .listIsEmpty(let list):
       assertionFailure("Not implemented")
@@ -371,11 +379,21 @@ func typecheck(expr: Expr, context: Context) throws -> StellaType {
     case .list(let exprs):
       let listTypes = try exprs.map { try typecheck(expr: $0, context: context) }
 
+//      guard let firstListType = listTypes.first else {
+//        throw TypecheckError.typeError(description: .listContainsDifferentTypes)
+//      } TODO: think about ambiguous types
+//      bad example, need to check
+//      
+//      fn ide(list : [Bool]) -> [Bool] {
+//        return []
+//      }
+//      here we will have only [], without exprs, so, what is the type of the list?
+
       guard listTypes.allElementsEqual == true else {
         throw TypecheckError.typeError(description: .listContainsDifferentTypes)
       }
 
-      return .list(types: listTypes)
+      return .list(type: listTypes.first!)
 
     case .lessThan(let left, let right),
         .lessThanOrEqual(let left, let right),

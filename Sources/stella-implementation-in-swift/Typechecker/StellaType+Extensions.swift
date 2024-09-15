@@ -73,8 +73,8 @@ extension StellaType: CustomStringConvertible {
         return "Top"
       case .bot:
         return "Bot"
-      case let .list(types):
-        return String(types.reduce("[") { $0 + $1.description + ","}.dropLast()) + "]"
+      case let .list(type):
+        return "[\(type.description)]"
       case let .record(fieldTypes):
         return String(fieldTypes.reduce("{") { $0 + $1.label + " = " + $1.type.description + ","}.dropLast()) + "}"
       case .variant:
