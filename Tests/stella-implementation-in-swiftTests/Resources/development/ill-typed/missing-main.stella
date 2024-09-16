@@ -1,5 +1,0 @@
-language core;
-
-fn pupa(x : Nat) -> Nat {
-    return succ(0)
-}

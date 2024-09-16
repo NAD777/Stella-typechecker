@@ -64,7 +64,7 @@ public func typecheck(program: Program) throws {
   let context = try Context()
     .add(decls: program.decls)
 
-  try program.decls.forEach { try typecheck(decl: $0, context: context) }
+  try program.decls.forEach { try typecheck(decl: $0, context: context.copy()) }
 
   guard context.isMainPresent else {
     throw TypecheckError.missingMain
@@ -76,6 +76,7 @@ func typecheck(decl: Decl, context: Context) throws {
     case let .declFun(_, name, paramDecls, returnType, _, _, returnExpr):
       print("decl function, name = \(name)")
       let newContext = try context
+        .copy()
         .add(paramDecls: paramDecls)
 
       let obtainedType = try typecheck(expr: returnExpr, expected: returnType, context: newContext)
@@ -104,7 +105,7 @@ func typecheck(decl: Decl, context: Context) throws {
 func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> StellaType {
   switch expr {
     case .dotRecord(let expr, let label):
-      let recordType = try typecheck(expr: expr, expected: nil, context: context)
+      let recordType = try typecheck(expr: expr, expected: nil, context: context.copy())
       guard case let .record(fieldTypes) = recordType else {
           throw TypecheckError.typeError(
             description: .custom("DotRecord operator must be applied to record type, got \(recordType.description)")
@@ -122,7 +123,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       return fieldType.type
 
     case .dotTuple(let expr, let index):
-      let tupleType = try typecheck(expr: expr, expected: nil, context: context)
+      let tupleType = try typecheck(expr: expr, expected: nil, context: context.copy())
       guard case let .tuple(types) = tupleType else {
           throw TypecheckError.typeError(
               description: .custom("DotTuple operator must be applied to pairs or tuples, got \(tupleType.description)")
@@ -152,7 +153,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       return .nat
 
     case .constMemory(let mem):
-      assertionFailure("Not implemented")
+      return .ref(type: .nat) // TODO: NAT??? 
 
     case .var(let name):
       return try context.get(by: name)
@@ -176,7 +177,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       guard case .sum(let lhs, _) = expected else {
         throw TypecheckError.typeError(description: .custom("Expected type for expression is not sum type"))
       }
-      return .sum(left: try typecheck(expr: expr, expected: lhs, context: context), right: .undefined)
+      return .sum(left: try typecheck(expr: expr, expected: lhs, context: context.copy()), right: .undefined)
 
     case .inr(let expr):
       guard let expected else {
@@ -185,7 +186,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       guard case .sum(_, let rhs) = expected else {
         throw TypecheckError.typeError(description: .custom("Expected type for expression is not sum type"))
       }
-      return .sum(left: .undefined, right: try typecheck(expr: expr, expected: rhs, context: context))
+      return .sum(left: .undefined, right: try typecheck(expr: expr, expected: rhs, context: context.copy()))
 
     case .listCons(let head, let tail):
       guard case .list(let exprs) = tail else {
@@ -194,10 +195,10 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       }
       let listExpr: Expr = .list(exprs: [head] + exprs)
       // TODO: do it more verbose
-      return try typecheck(expr: listExpr, expected: expected, context: context)
+      return try typecheck(expr: listExpr, expected: expected, context: context.copy())
 
     case .listHead(let list):
-      let listType = try typecheck(expr: list, expected: nil, context: context)
+      let listType = try typecheck(expr: list, expected: nil, context: context.copy())
       guard case .list(let type) = listType else {
         throw TypecheckError.typeError(description: .expectedList)
       }
@@ -207,7 +208,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       return type
 
     case .listIsEmpty(let list):
-      let type = try typecheck(expr: list, expected: nil, context: context)
+      let type = try typecheck(expr: list, expected: nil, context: context.copy())
 
       guard case .list(_) = type else {
         throw TypecheckError.typeError(description: .custom("Expected list type, but actual type is \(type.description)"))
@@ -218,7 +219,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       return .bool
 
     case .listTail(let list):
-      let type = try typecheck(expr: list, expected: nil, context: context)
+      let type = try typecheck(expr: list, expected: nil, context: context.copy())
 
       guard case .list(_) = type else {
         throw TypecheckError.typeError(description: .custom("Expected list type, but actual type is \(type.description)"))
@@ -229,14 +230,14 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       return type
 
     case .succ(let n):
-      let type = try typecheck(expr: n, expected: .nat, context: context)
+      let type = try typecheck(expr: n, expected: .nat, context: context.copy())
       guard type == .nat else {
         throw TypecheckError.typeError(description: .typeMismatch(expectedType: .nat, givenType: type))
       }
       return .nat
 
     case .logicNot(let expr):
-      let type = try typecheck(expr: expr, expected: .bool, context: context)
+      let type = try typecheck(expr: expr, expected: .bool, context: context.copy())
 
       guard type == .bool else {
         throw TypecheckError.typeError(description: .typeMismatch(expectedType: .bool, givenType: type))
@@ -248,7 +249,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       assertionFailure("Not implemented")
 
     case .natIsZero(let n):
-      let type = try typecheck(expr: n, expected: .nat, context: context)
+      let type = try typecheck(expr: n, expected: .nat, context: context.copy())
       guard type == .nat else {
         throw TypecheckError.typeError(description: .typeMismatch(expectedType: .nat, givenType: type))
       }
@@ -261,14 +262,14 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       //    initial can be of any type T;
       //    step has to be of type fn(Nat) -> (fn(T) -> T);
 
-      let typeN = try typecheck(expr: n, expected: .nat, context: context)
+      let typeN = try typecheck(expr: n, expected: .nat, context: context.copy())
       guard typeN == .nat else {
         throw TypecheckError.typeError(
           description: .custom("First parameter in <Nat::rec> is expected to be Nat, got \(typeN.description)")
         )
       }
 
-      let typeInitial = try typecheck(expr: initial, expected: nil, context: context)
+      let typeInitial = try typecheck(expr: initial, expected: nil, context: context.copy())
 
       let typeStep = try typecheck(
         expr: step,
@@ -279,7 +280,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
             returnType: typeInitial
           )
         ), // fn(Nat) -> (fn(T) -> T)
-        context: context
+        context: context.copy()
       )
       guard
         case let .fun(parameterTypesStep, returnTypeStep) = typeStep,
@@ -316,14 +317,14 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
         throw TypecheckError.onlyOneArgument
       }
 
-      let funcType = try typecheck(expr: expr, expected: nil, context: context)
+      let funcType = try typecheck(expr: expr, expected: nil, context: context.copy())
       guard case let .fun(parameterTypes, returnType) = funcType else {
         throw TypecheckError.typeError(
           description: .custom("Expected TypeFun, got \(funcType.description)")
         )
       }
 
-      var argType = try typecheck(expr: exprs[0], expected: parameterTypes[0], context: context)
+      var argType = try typecheck(expr: exprs[0], expected: parameterTypes[0], context: context.copy())
       argType = try mergeTypes(argType, parameterTypes[0])
 
       guard parameterTypes[0] == argType else {
@@ -341,8 +342,8 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
         .divide(let left, let right),
         .subtract(let left, let right),
         .add(let left, let right):
-      let typeLeft = try typecheck(expr: left, expected: .nat, context: context)
-      let typeRight = try typecheck(expr: right, expected: .nat, context: context)
+      let typeLeft = try typecheck(expr: left, expected: .nat, context: context.copy())
+      let typeRight = try typecheck(expr: right, expected: .nat, context: context.copy())
 
       guard typeLeft == .nat else {
         throw TypecheckError.typeError(description: .typeMismatch(expectedType: .nat, givenType: typeLeft))
@@ -355,8 +356,8 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
 
     case .logicAnd(let left, let right),
          .logicOr(let left, let right):
-      let typeLeft = try typecheck(expr: left, expected: .bool, context: context)
-      let typeRight = try typecheck(expr: right, expected: .bool, context: context)
+      let typeLeft = try typecheck(expr: left, expected: .bool, context: context.copy())
+      let typeRight = try typecheck(expr: right, expected: .bool, context: context.copy())
 
       guard typeLeft == .bool else {
         throw TypecheckError.typeError(description: .typeMismatch(expectedType: .bool, givenType: typeLeft))
@@ -368,12 +369,12 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       return .bool
 
     case .ref(let expr):
-      let type = try typecheck(expr: expr, expected: .nat, context: context) // TODO: nat?
+      let type = try typecheck(expr: expr, expected: .nat, context: context.copy()) // TODO: nat?
 
       return .ref(type: type)
 
     case .deref(let expr):
-      let type = try typecheck(expr: expr, expected: .ref(type: .nat), context: context) // TODO: ref-nat?
+      let type = try typecheck(expr: expr, expected: .ref(type: .nat), context: context.copy()) // TODO: ref-nat?
 
       guard case let .ref(refType) = type else {
         throw TypecheckError.typeError(
@@ -383,7 +384,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       return refType
 
     case .typeAsc(let expr, let type):
-      let typeExpr = try mergeTypes(try typecheck(expr: expr, expected: type, context: context), type)
+      let typeExpr = try mergeTypes(try typecheck(expr: expr, expected: type, context: context.copy()), type)
 
       return typeExpr
 
@@ -396,6 +397,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       }
 
       let newContext = try context
+        .copy()
         .add(paramDecls: paramDecls)
 
       let exprResultType = try typecheck(expr: returnExpr, expected: nil, context: newContext)
@@ -412,11 +414,11 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
         }
         return try .tuple(
           types: zip(types, exprs).map {
-            try typecheck(expr: $0.1, expected: $0.0, context: context)
+            try typecheck(expr: $0.1, expected: $0.0, context: context.copy())
           }
         )
       }
-      return try .tuple(types: exprs.map { try typecheck(expr: $0, expected: nil, context: context) })
+      return try .tuple(types: exprs.map { try typecheck(expr: $0, expected: nil, context: context.copy()) })
 
     case .record(let bindings):
       let recordNames = bindings.map(\.name)
@@ -429,7 +431,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       return .record(
           fieldTypes: try bindings.map { RecordFieldType(
               label: $0.name,
-              type: try typecheck(expr: $0.rhs, expected: nil, context: context) // TODO: expected?
+              type: try typecheck(expr: $0.rhs, expected: nil, context: context.copy()) // TODO: expected?
           )}
       )
 
@@ -437,7 +439,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       assertionFailure("Not implemented")
 
     case .match(let expr, let cases):
-      let exprType = try typecheck(expr: expr, expected: nil, context: context)
+      let exprType = try typecheck(expr: expr, expected: nil, context: context.copy())
       guard case let .sum(lhs, rhs) = exprType else {
         throw TypecheckError.typeError(
           description: .custom("Only Sum type can be matched, got \(exprType.description)")
@@ -448,37 +450,37 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
 
       for matchCase in cases {
         let patternIdent = try matchCase.pattern.identifier()
-          let patternType: StellaType
-          switch matchCase.pattern {
+        let patternType: StellaType
+        switch matchCase.pattern {
           case .inl:
-              patternType = lhs
+            patternType = lhs
 
           case .inr:
-              patternType = rhs
+            patternType = rhs
 
           default:
-              throw TypecheckError.notSupported("Not supported pattern")
-          }
+            throw TypecheckError.notSupported("Not supported pattern")
+        }
 
-          var newContext = context
+        var newContext = context.copy()
 
-          if patternIdent != "_" {
-            newContext = try context.add(name: patternIdent, type: patternType)
-          }
+        if patternIdent != "_" {
+          newContext = try newContext.add(name: patternIdent, type: patternType)
+        }
 
         let matchExprType = try typecheck(expr: matchCase.expr, expected: expected, context: newContext)
 
-          if matchCommonType == nil {
-              matchCommonType = matchExprType
-          }
+        if matchCommonType == nil {
+          matchCommonType = matchExprType
+        }
 
-          if matchCommonType != matchExprType {
-              throw TypecheckError.typeError(
-                description: .custom("All exprs in cases should have the same type, got \(matchCommonType?.description ?? "nothing") and \(matchExprType.description)")
-              )
-          }
+        if matchCommonType != matchExprType {
+          throw TypecheckError.typeError(
+            description: .custom("All exprs in cases should have the same type, got \(matchCommonType?.description ?? "nothing") and \(matchExprType.description)")
+          )
+        }
 
-          matchCommonType = try mergeTypes(matchExprType, matchExprType)
+        matchCommonType = try mergeTypes(matchExprType, matchExprType)
       }
 
       guard let matchCommonType else {
@@ -496,7 +498,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       return matchCommonType
 
     case .list(let exprs):
-      let listTypes = try exprs.map { try typecheck(expr: $0, expected: nil, context: context) }
+      let listTypes = try exprs.map { try typecheck(expr: $0, expected: nil, context: context.copy()) }
 
 //      guard let firstListType = listTypes.first else {
 //        throw TypecheckError.typeError(description: .listContainsDifferentTypes)
@@ -542,8 +544,8 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
         .lessThanOrEqual(let left, let right),
         .greaterThanOrEqual(let left, let right),
         .greaterThan(let left, let right):
-      let typeLeft = try typecheck(expr: left, expected: .nat, context: context)
-      let typeRight = try typecheck(expr: right, expected: .nat, context: context)
+      let typeLeft = try typecheck(expr: left, expected: .nat, context: context.copy())
+      let typeRight = try typecheck(expr: right, expected: .nat, context: context.copy())
 
       guard typeLeft == .nat else {
         throw TypecheckError.typeError(description: .typeMismatch(expectedType: .nat, givenType: typeLeft))
@@ -556,8 +558,8 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
 
     case .notEqual(let left, let right),
          .equal(let left, let right):
-      let leftType = try typecheck(expr: left, expected: nil, context: context)
-      let rightType = try typecheck(expr: right, expected: nil, context: context)
+      let leftType = try typecheck(expr: left, expected: nil, context: context.copy())
+      let rightType = try typecheck(expr: right, expected: nil, context: context.copy())
 
       guard leftType == rightType else {
         throw TypecheckError.typeError(
@@ -568,13 +570,21 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       return .bool
 
     case .assign(let lhs, let rhs):
-      _ = try typecheck(expr: lhs, expected: nil, context: context)
-      _ = try typecheck(expr: rhs, expected: nil, context: context)
+      let lhsType = try typecheck(expr: lhs, expected: nil, context: context.copy())
+      let rhsType = try typecheck(expr: rhs, expected: nil, context: context.copy())
+
+      guard case .ref(let refExprType) = lhsType else {
+        throw TypecheckError.typeError(description: .custom("Expected type ref to assign"))
+      }
+
+      guard refExprType == rhsType else {
+        throw TypecheckError.typeError(description: .custom("Expected type ref to \(refExprType), but try to assign \(rhsType) value"))
+      }
 
       return .unit
 
     case .if(let condition, let thenExpr, let elseExpr):
-      let conditionType = try typecheck(expr: condition, expected: .bool, context: context)
+      let conditionType = try typecheck(expr: condition, expected: .bool, context: context.copy())
 
       guard conditionType == .bool else {
         throw TypecheckError.typeError(
@@ -582,8 +592,8 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
         )
       }
 
-      var thenExprType = try typecheck(expr: thenExpr, expected: expected, context: context)
-      var elseExprType = try typecheck(expr: elseExpr, expected: expected, context: context)
+      var thenExprType = try typecheck(expr: thenExpr, expected: expected, context: context.copy())
+      var elseExprType = try typecheck(expr: elseExpr, expected: expected, context: context.copy())
 
       thenExprType = try mergeTypes(thenExprType, elseExprType)
       elseExprType = try mergeTypes(elseExprType, thenExprType)
@@ -603,8 +613,9 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
         throw TypecheckError.notImplemented
       }
 
-      let type = try typecheck(expr: pattern.rhs, expected: nil, context: context)
-      let newContext = try context.add(name: name, type: type)
+      let type = try typecheck(expr: pattern.rhs, expected: nil, context: context.copy())
+      let newContext = try context
+        .add(name: name, type: type)
 
       return try typecheck(expr: body, expected: expected, context: newContext)
 
@@ -615,7 +626,20 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       assertionFailure("Not implemented")
 
     case .sequence(let expr1, let expr2):
-      assertionFailure("Not implemented")
+      // If we have only one expression, the type of the sequence is the type of this expression
+      guard let expr2 else {
+        return try typecheck(expr: expr1, expected: expected, context: context)
+      }
+
+      // If there are two expressions in the sequence, the first operand must have the type Unit and its value is discarded.
+      let type1 = try typecheck(expr: expr1, expected: .unit, context: context)
+      guard type1 == .unit else {
+          throw TypecheckError.typeError(
+            description: .custom("Match should have at least one case")
+          )
+      }
+
+      return try typecheck(expr: expr2, expected: expected, context: context)
   }
   fatalError("Not implemented")
 }

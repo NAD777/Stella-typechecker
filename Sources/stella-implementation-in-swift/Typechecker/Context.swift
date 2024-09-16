@@ -25,14 +25,13 @@ extension ContextError: LocalizedError {
   }
 }
 
-struct Context {
+class Context {
   private var contextEntries: [ContextEntryName: StellaType] = [:] // contains funcs and variables
 
   func add(name: ContextEntryName, type: StellaType) throws -> Self {
-    var newContext = self
-    newContext.contextEntries[name] = type
+    self.contextEntries[name] = type
 
-    return newContext
+    return self
   }
 
   func get(by name: ContextEntryName) throws -> StellaType {
@@ -42,30 +41,33 @@ struct Context {
 
     return type
   }
+
+  func copy() -> Context {
+    let newContext = Context()
+    newContext.contextEntries = contextEntries
+
+    return newContext
+  }
 }
 
 extension Context {
   func add(paramDecls: [ParamDecl]) throws -> Self {
-    var newContext = self
-
     try paramDecls.forEach { decl in
-      newContext = try newContext.add(name: decl.name, type: decl.type)
+      _ = try self.add(name: decl.name, type: decl.type)
     }
 
-    return newContext
+    return self
   }
 
   // used for top level function
   func add(decls: [Decl]) throws -> Self {
-    var newContext = self
-
     try decls.forEach { decl in
       switch decl {
         case .declFun(let annotations, let name, let paramDecls, let returnType, let throwTypes, let localDecls, let returnExpr):
-          try newContext.assertNotPresent(for: name)
+          try self.assertNotPresent(for: name)
           let functionType = try typeForFunction(paramDecls: paramDecls, returnType: returnType)
-          newContext = try newContext
-            .add(name: name, type: functionType)
+
+          _ = try self.add(name: name, type: functionType)
 
         case .declFunGeneric(let annotations, let name, let generics, let paramDecls, let returnType, let throwTypes, let localDecls, let returnExpr):
           assertionFailure("Not implemented")
@@ -77,7 +79,7 @@ extension Context {
           assertionFailure("Not implemented")
       }
     }
-    return newContext
+    return self
   }
 }
 
