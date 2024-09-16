@@ -7,7 +7,7 @@
 
 import Foundation
 
-typealias ContextEntriesName = String
+typealias ContextEntryName = String
 
 enum ContextError: Error {
   case contextEntryAlreadyExist(name: String)
@@ -26,16 +26,16 @@ extension ContextError: LocalizedError {
 }
 
 struct Context {
-  private var contextEntries: [ContextEntriesName: StellaType] = [:] // contains funcs and variables
+  private var contextEntries: [ContextEntryName: StellaType] = [:] // contains funcs and variables
 
-  func add(name: ContextEntriesName, type: StellaType) throws -> Self {
+  func add(name: ContextEntryName, type: StellaType) throws -> Self {
     var newContext = self
     newContext.contextEntries[name] = type
 
     return newContext
   }
 
-  func get(by name: ContextEntriesName) throws -> StellaType {
+  func get(by name: ContextEntryName) throws -> StellaType {
     guard let type = contextEntries[name] else {
       throw ContextError.contextEntryDoesNotExist(name: name)
     }
@@ -87,7 +87,7 @@ extension Context {
     contextEntries["main"] != nil
   }
 
-  func assertNotPresent(for name: ContextEntriesName) throws {
+  func assertNotPresent(for name: ContextEntryName) throws {
     guard contextEntries[name] == nil else {
       throw ContextError.contextEntryAlreadyExist(name: name)
     }

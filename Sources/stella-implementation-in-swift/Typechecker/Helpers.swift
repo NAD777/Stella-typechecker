@@ -26,3 +26,31 @@ func assertEqual(expected: StellaType?, given: StellaType) throws {
     throw TypecheckError.typeError(description: .typeMismatch(expectedType: expected, givenType: given))
   }
 }
+
+
+func mergeTypes(_ type1: StellaType, _ type2: StellaType) throws -> StellaType {
+  guard
+    case let .sum(lhs1, rhs1) = type1,
+    case let .sum(lhs2, rhs2) = type2
+  else {
+    return type1
+  }
+
+  if lhs1 == .undefined {
+    return try .sum(left: lhs2, right: mergeTypes(rhs1, rhs2))
+  }
+
+  if rhs1 == .undefined {
+    return try .sum(left: mergeTypes(lhs1, lhs2), right: rhs2)
+  }
+
+  if lhs2 == .undefined {
+    return try .sum(left: lhs1, right: mergeTypes(rhs1, rhs2))
+  }
+
+  if rhs2 == .undefined {
+    return try .sum(left: mergeTypes(lhs1, lhs2), right: rhs1)
+  }
+
+  throw TypecheckError.notSupported("Can't merge types \(type1.description), \(type2.description)")
+}

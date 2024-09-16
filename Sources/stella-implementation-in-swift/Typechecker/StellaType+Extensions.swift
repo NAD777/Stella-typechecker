@@ -51,6 +51,9 @@ extension StellaType: Equatable {
         assertionFailure("Not implemented")
         return false
 
+      case (.undefined, .undefined):
+        return true
+
       default:
         return false
     }
@@ -88,6 +91,8 @@ extension StellaType: CustomStringConvertible {
         fatalError("not implemented")
       case let .var(name):
         return "var(\(name))"
+      case .undefined:
+        return "No type"
     }
   }
 }

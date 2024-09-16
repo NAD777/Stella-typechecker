@@ -216,7 +216,7 @@ public indirect enum StellaType: Hashable {
     case ref(type: StellaType)
     case bot
     case `var`(name: String)
-    
+    case undefined
 }
 
 public struct RecordFieldType: Hashable {

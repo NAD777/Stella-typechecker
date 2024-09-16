@@ -32,3 +32,10 @@ extension Array where Element: Hashable {
     return true
   }
 }
+
+
+extension Array {
+  var isNotEmpty: Bool {
+    !self.isEmpty
+  }
+}

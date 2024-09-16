@@ -12,6 +12,8 @@ enum TypecheckError: Error {
   case requiredReturnType
   case onlyOneArgument
   case notImplemented
+  case emptyMatching
+  case notSupported(String)
   case typeError(description: TypeErrorDescription)
 }
 
@@ -50,6 +52,10 @@ extension TypecheckError: LocalizedError {
         description.errorDescription
       case .notImplemented:
         "Not implemented"
+      case .emptyMatching:
+        "Empty matching"
+      case .notSupported(let msg):
+        "Not supported: \(msg)"
     }
   }
 }
@@ -164,10 +170,22 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       assertionFailure("Not implemented")
 
     case .inl(let expr):
-      assertionFailure("Not implemented")
+      guard let expected else { 
+        throw TypecheckError.typeError(description: .custom("type inference of sum types is not supported (use type ascriptions)"))
+      }
+      guard case .sum(let lhs, _) = expected else {
+        throw TypecheckError.typeError(description: .custom("Expected type for expression is not sum type"))
+      }
+      return .sum(left: try typecheck(expr: expr, expected: lhs, context: context), right: .undefined)
 
     case .inr(let expr):
-      assertionFailure("Not implemented")
+      guard let expected else {
+        throw TypecheckError.typeError(description: .custom("type inference of sum types is not supported (use type ascriptions)"))
+      }
+      guard case .sum(_, let rhs) = expected else {
+        throw TypecheckError.typeError(description: .custom("Expected type for expression is not sum type"))
+      }
+      return .sum(left: .undefined, right: try typecheck(expr: expr, expected: rhs, context: context))
 
     case .listCons(let head, let tail):
       guard case .list(let exprs) = tail else {
@@ -305,7 +323,8 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
         )
       }
 
-      let argType = try typecheck(expr: exprs[0], expected: parameterTypes[0], context: context)
+      var argType = try typecheck(expr: exprs[0], expected: parameterTypes[0], context: context)
+      argType = try mergeTypes(argType, parameterTypes[0])
 
       guard parameterTypes[0] == argType else {
         throw TypecheckError.typeError(
@@ -364,7 +383,9 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       return refType
 
     case .typeAsc(let expr, let type):
-      assertionFailure("Not implemented")
+      let typeExpr = try mergeTypes(try typecheck(expr: expr, expected: type, context: context), type)
+
+      return typeExpr
 
     case .typeCast(let expr, let type):
       assertionFailure("Not implemented")
@@ -416,7 +437,63 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       assertionFailure("Not implemented")
 
     case .match(let expr, let cases):
-      assertionFailure("Not implemented")
+      let exprType = try typecheck(expr: expr, expected: nil, context: context)
+      guard case let .sum(lhs, rhs) = exprType else {
+        throw TypecheckError.typeError(
+          description: .custom("Only Sum type can be matched, got \(exprType.description)")
+        )
+      }
+
+      var matchCommonType: StellaType?
+
+      for matchCase in cases {
+        let patternIdent = try matchCase.pattern.identifier()
+          let patternType: StellaType
+          switch matchCase.pattern {
+          case .inl:
+              patternType = lhs
+
+          case .inr:
+              patternType = rhs
+
+          default:
+              throw TypecheckError.notSupported("Not supported pattern")
+          }
+
+          var newContext = context
+
+          if patternIdent != "_" {
+            newContext = try context.add(name: patternIdent, type: patternType)
+          }
+
+        let matchExprType = try typecheck(expr: matchCase.expr, expected: expected, context: newContext)
+
+          if matchCommonType == nil {
+              matchCommonType = matchExprType
+          }
+
+          if matchCommonType != matchExprType {
+              throw TypecheckError.typeError(
+                description: .custom("All exprs in cases should have the same type, got \(matchCommonType?.description ?? "nothing") and \(matchExprType.description)")
+              )
+          }
+
+          matchCommonType = try mergeTypes(matchExprType, matchExprType)
+      }
+
+      guard let matchCommonType else {
+        throw TypecheckError.typeError(
+          description: .custom("Match should have at least one case")
+        )
+      }
+
+      guard cases.count == 2 else {
+        throw TypecheckError.typeError(
+          description: .custom("Non-exhaustive pattern matches in match")
+        )
+      }
+
+      return matchCommonType
 
     case .list(let exprs):
       let listTypes = try exprs.map { try typecheck(expr: $0, expected: nil, context: context) }
@@ -505,10 +582,13 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
         )
       }
 
-      let thenExprType = try typecheck(expr: thenExpr, expected: expected, context: context)
-      let elseExprType = try typecheck(expr: elseExpr, expected: expected, context: context)
+      var thenExprType = try typecheck(expr: thenExpr, expected: expected, context: context)
+      var elseExprType = try typecheck(expr: elseExpr, expected: expected, context: context)
 
-      guard thenExprType == elseExprType else {
+      thenExprType = try mergeTypes(thenExprType, elseExprType)
+      elseExprType = try mergeTypes(elseExprType, thenExprType)
+
+      guard (thenExprType == elseExprType) || (elseExprType == thenExprType) else {
         throw TypecheckError.typeError(
           description: .custom("If's then and else blocks must have the same type")
         )
