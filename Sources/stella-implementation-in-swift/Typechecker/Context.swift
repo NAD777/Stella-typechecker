@@ -28,7 +28,7 @@ extension ContextError: LocalizedError {
 class Context {
   private var contextEntries: [ContextEntryName: StellaType] = [:] // contains funcs and variables
 
-  func add(name: ContextEntryName, type: StellaType) throws -> Self {
+  func add(name: ContextEntryName, type: StellaType) -> Self {
     self.contextEntries[name] = type
 
     return self

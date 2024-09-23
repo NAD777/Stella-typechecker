@@ -22,6 +22,9 @@ enum TypeErrorDescription {
   case listContainsDifferentTypes
   case expectedList
   case typeMismatch(expectedType: StellaType, givenType: StellaType)
+  case illegalEmptyMatching
+  case unexpectedPatternForType
+  case nonexhaustiveMatchPatterns
 }
 
 extension TypeErrorDescription: LocalizedError {
@@ -35,6 +38,12 @@ extension TypeErrorDescription: LocalizedError {
         return "The list must contain values of the same type"
       case .expectedList:
         return "Expected list type"
+      case .illegalEmptyMatching:
+        return "Illegal empty matching"
+      case .unexpectedPatternForType:
+        return "Unexpected pattern for type"
+      case .nonexhaustiveMatchPatterns:
+        return "Nonexhaustive match patterns"
     }
   }
 }
@@ -440,75 +449,36 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
 
     case .match(let expr, let cases):
       let exprType = try typecheck(expr: expr, expected: nil, context: context.copy())
-      guard case let .sum(lhs, rhs) = exprType else {
-        throw TypecheckError.typeError(
-          description: .custom("Only Sum type can be matched, got \(exprType.description)")
-        )
+      guard cases.count != 0 else {
+        throw TypecheckError.typeError(description: .illegalEmptyMatching)
       }
-
-      var matchCommonType: StellaType?
+      var caseBodyExpectedType: StellaType? = expected
 
       for matchCase in cases {
-        let patternIdent = try matchCase.pattern.identifier()
-        let patternType: StellaType
-        switch matchCase.pattern {
-          case .inl:
-            patternType = lhs
-
-          case .inr:
-            patternType = rhs
-
-          default:
-            throw TypecheckError.notSupported("Not supported pattern")
+        let contextCopy = context.copy()
+        let extendedCtx = try checkPattern(pattern: matchCase.pattern, type: exprType, context: contextCopy)
+        let inferredType = try typecheck(expr: matchCase.expr, expected: expected, context: extendedCtx)
+        if let caseBodyExpectedType {
+          guard caseBodyExpectedType == inferredType else {
+            throw TypecheckError.typeError(description: .typeMismatch(expectedType: caseBodyExpectedType, givenType: inferredType))
+          }
+        } else {
+          caseBodyExpectedType = inferredType
         }
-
-        var newContext = context.copy()
-
-        if patternIdent != "_" {
-          newContext = try newContext.add(name: patternIdent, type: patternType)
-        }
-
-        let matchExprType = try typecheck(expr: matchCase.expr, expected: expected, context: newContext)
-
-        if matchCommonType == nil {
-          matchCommonType = matchExprType
-        }
-
-        if matchCommonType != matchExprType {
-          throw TypecheckError.typeError(
-            description: .custom("All exprs in cases should have the same type, got \(matchCommonType?.description ?? "nothing") and \(matchExprType.description)")
-          )
-        }
-
-        matchCommonType = try mergeTypes(matchExprType, matchExprType)
       }
-
-      guard let matchCommonType else {
+      guard let caseBodyExpectedType else {
         throw TypecheckError.typeError(
-          description: .custom("Match should have at least one case")
+          description: .illegalEmptyMatching
         )
       }
-
-      guard cases.count == 2 else {
+      guard cases.count == 2 else { // TODO: IMPROVE check for exhaustiveness!
         throw TypecheckError.typeError(
-          description: .custom("Non-exhaustive pattern matches in match")
+          description: .nonexhaustiveMatchPatterns
         )
       }
-
-      return matchCommonType
-
+      return caseBodyExpectedType
     case .list(let exprs):
       let listTypes = try exprs.map { try typecheck(expr: $0, expected: nil, context: context.copy()) }
-
-//      guard let firstListType = listTypes.first else {
-//        throw TypecheckError.typeError(description: .listContainsDifferentTypes)
-//      } TODO: think about ambiguous types
-//      bad example, need to check
-//      
-//      fn ide(list : [Bool]) -> [Bool] {
-//        return []
-//      }
-//      here we will have only [], without exprs, so, what is the type of the list?
 
       guard listTypes.allElementsEqual == true else {
         throw TypecheckError.typeError(description: .listContainsDifferentTypes)
@@ -614,7 +584,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       }
 
       let type = try typecheck(expr: pattern.rhs, expected: nil, context: context.copy())
-      let newContext = try context
+      let newContext = context
         .add(name: name, type: type)
 
       return try typecheck(expr: body, expected: expected, context: newContext)
@@ -642,4 +612,32 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       return try typecheck(expr: expr2, expected: expected, context: context)
   }
   fatalError("Not implemented")
+}
+
+
+func checkPattern(pattern: Pattern, type: StellaType, context: Context) throws -> Context {
+  switch pattern {
+    case .var(let name):
+      return context.add(name: name, type: type)
+    case .inl(let pat):
+      guard case .sum(let left, _) = type else {
+        throw TypecheckError.typeError(description: .unexpectedPatternForType)
+      }
+      return try checkPattern(pattern: pat, type: left, context: context)
+    case .inr(let pat):
+      guard case .sum(_, let right) = type else {
+        throw TypecheckError.typeError(description: .unexpectedPatternForType)
+      }
+      return try checkPattern(pattern: pat, type: right, context: context)
+    case .variant(let label, let innerPattern):
+      guard case .variant(let fieldTypes) = type else {
+        throw TypecheckError.typeError(description: .unexpectedPatternForType)
+      }
+      guard let field = fieldTypes.first(where: { $0.label == label }) else {
+        throw TypecheckError.typeError(description: .unexpectedPatternForType)
+      }
+      return try checkPattern(pattern: innerPattern!, type: field.type!, context: context.copy())
+    default:
+      fatalError("Not implemented")
+  }
 }
