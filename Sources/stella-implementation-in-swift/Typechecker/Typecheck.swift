@@ -186,7 +186,11 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       guard case .sum(let lhs, _) = expected else {
         throw TypecheckError.typeError(description: .custom("Expected type for expression is not sum type"))
       }
-      return .sum(left: try typecheck(expr: expr, expected: lhs, context: context.copy()), right: .undefined)
+      let actualType = try typecheck(expr: expr, expected: lhs, context: context.copy())
+      guard lhs == actualType else {
+        throw TypeErrorDescription.typeMismatch(expectedType: lhs, givenType: actualType)
+      }
+      return expected
 
     case .inr(let expr):
       guard let expected else {
@@ -195,7 +199,11 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       guard case .sum(_, let rhs) = expected else {
         throw TypecheckError.typeError(description: .custom("Expected type for expression is not sum type"))
       }
-      return .sum(left: .undefined, right: try typecheck(expr: expr, expected: rhs, context: context.copy()))
+      let actualType = try typecheck(expr: expr, expected: rhs, context: context.copy())
+      guard rhs == actualType else {
+        throw TypeErrorDescription.typeMismatch(expectedType: rhs, givenType: actualType)
+      }
+      return expected
 
     case .listCons(let head, let tail):
       guard case .list(let exprs) = tail else {
@@ -333,8 +341,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
         )
       }
 
-      var argType = try typecheck(expr: exprs[0], expected: parameterTypes[0], context: context.copy())
-      argType = try mergeTypes(argType, parameterTypes[0])
+      let argType = try typecheck(expr: exprs[0], expected: parameterTypes[0], context: context.copy())
 
       guard parameterTypes[0] == argType else {
         throw TypecheckError.typeError(
@@ -392,10 +399,12 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       }
       return refType
 
-    case .typeAsc(let expr, let type):
-      let typeExpr = try mergeTypes(try typecheck(expr: expr, expected: type, context: context.copy()), type)
-
-      return typeExpr
+    case .typeAsc(let expr, let ascribedType):
+      let typeExpr = try typecheck(expr: expr, expected: ascribedType, context: context.copy())
+      guard typeExpr == ascribedType else {
+        throw TypecheckError.typeError(description: .typeMismatch(expectedType: ascribedType, givenType: typeExpr))
+      }
+      return ascribedType
 
     case .typeCast(let expr, let type):
       assertionFailure("Not implemented")
@@ -562,11 +571,8 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
         )
       }
 
-      var thenExprType = try typecheck(expr: thenExpr, expected: expected, context: context.copy())
-      var elseExprType = try typecheck(expr: elseExpr, expected: expected, context: context.copy())
-
-      thenExprType = try mergeTypes(thenExprType, elseExprType)
-      elseExprType = try mergeTypes(elseExprType, thenExprType)
+      let thenExprType = try typecheck(expr: thenExpr, expected: expected, context: context.copy())
+      let elseExprType = try typecheck(expr: elseExpr, expected: expected, context: context.copy())
 
       guard (thenExprType == elseExprType) || (elseExprType == thenExprType) else {
         throw TypecheckError.typeError(
