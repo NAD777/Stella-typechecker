@@ -26,6 +26,8 @@ enum TypeErrorDescription {
   case unexpectedPatternForType
   case nonexhaustiveMatchPatterns
   case notAFunction
+  case unexpectedVariantLabel
+  case ambiguousVariantType
 }
 
 extension TypeErrorDescription: LocalizedError {
@@ -47,6 +49,10 @@ extension TypeErrorDescription: LocalizedError {
         return "Nonexhaustive match patterns"
       case .notAFunction:
         return "Not a function"
+      case .unexpectedVariantLabel:
+        return "Unexpected variant label"
+      case .ambiguousVariantType:
+        return "Ambiguous variant type"
     }
   }
 }
@@ -465,8 +471,33 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
           )}
       )
 
-    case .variant(let label, let rhs):
-      assertionFailure("Not implemented")
+    case .variant(let label, let expr):
+      guard let expected else {
+        throw TypecheckError.typeError(description: .ambiguousVariantType)
+      }
+
+      guard case .variant(let fieldTypes) = expected else {
+        throw TypecheckError.typeError(description: .custom("Expected not variant type"))
+      }
+
+      guard fieldTypes.count > 0 else {
+        throw TypecheckError.typeError(description: .custom("Expected variant type with at least one field"))
+      }
+
+      guard let field = fieldTypes.first(where: { $0.label == label }) else {
+        throw TypecheckError.typeError(description: .unexpectedVariantLabel)
+      }
+
+      let fieldExpectedType = field.type
+
+      let fieldType = try typecheck(expr: expr!, expected: fieldExpectedType, context: context.copy())
+
+      if let fieldExpectedType {
+        guard fieldType == fieldExpectedType  else {
+          throw TypecheckError.typeError(description: .typeMismatch(expectedType: fieldExpectedType, givenType: fieldType))
+        }
+      }
+      return expected
 
     case .match(let expr, let cases):
       let exprType = try typecheck(expr: expr, expected: nil, context: context.copy())
@@ -492,11 +523,11 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
           description: .illegalEmptyMatching
         )
       }
-      guard cases.count == 2 else { // TODO: IMPROVE check for exhaustiveness!
-        throw TypecheckError.typeError(
-          description: .nonexhaustiveMatchPatterns
-        )
-      }
+//      guard cases.count == 2 else { // TODO: implement check for exhaustiveness!
+//        throw TypecheckError.typeError(
+//          description: .nonexhaustiveMatchPatterns
+//        )
+//      }
       return caseBodyExpectedType
     case .list(let exprs):
       let listTypes = try exprs.map { try typecheck(expr: $0, expected: nil, context: context.copy()) }

@@ -47,9 +47,10 @@ extension StellaType: Equatable {
       case let (.list(lhs), .list(rhs)):
         return lhs == rhs
 
-      case let (.variant(lhs), .var(rhs)):
-        assertionFailure("Not implemented")
-        return false
+      case let (.variant(lhs), .variant(rhs)):
+        let st1 = Set(lhs)
+        let st2 = Set(rhs)
+        return st1.isSubset(of: st2)
 
       case (.undefined, .undefined):
         return true
@@ -88,7 +89,7 @@ extension StellaType: CustomStringConvertible {
       case let .record(fieldTypes):
         return String(fieldTypes.reduce("{") { $0 + $1.label + " = " + $1.type.description + ","}.dropLast()) + "}"
       case .variant:
-        fatalError("not implemented")
+        return "Variant"
       case let .var(name):
         return "var(\(name))"
       case .undefined:

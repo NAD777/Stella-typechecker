@@ -59,7 +59,7 @@ public func buildType(ctx: stellaParser.StellatypeContext) throws -> StellaType 
         )
         
     case let ctx as stellaParser.TypeVariantContext:
-        return try .record(
+        return try .variant(
             fieldTypes: ctx.fieldTypes.map{
                 .init(label: $0.label.getText()!,
                       type: try buildType(ctx: $0.type_))
