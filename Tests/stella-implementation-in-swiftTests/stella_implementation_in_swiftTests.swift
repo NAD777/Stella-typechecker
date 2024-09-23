@@ -167,6 +167,34 @@ final class stella_implementation_in_swiftTests: XCTestCase {
        checkIllTyped(filepaths: filepaths)
    }
 
+  // MARK: - recursions
+
+  func testRecursionsWellTyped() throws {
+      let resourcePath = "\(Bundle.module.resourcePath!)/Resources"
+      let filepaths = filepaths(in: resourcePath + "/recursions/well-typed")
+      checkWellTyped(filepaths: filepaths)
+  }
+
+   func testRecursionsIllTyped() throws {
+       let resourcePath = "\(Bundle.module.resourcePath!)/Resources"
+       let filepaths = filepaths(in: resourcePath + "/recursions/ill-typed")
+       checkIllTyped(filepaths: filepaths)
+   }
+
+  // MARK: - variants
+
+  func testVariantsWellTyped() throws {
+      let resourcePath = "\(Bundle.module.resourcePath!)/Resources"
+      let filepaths = filepaths(in: resourcePath + "/variants/well-typed")
+      checkWellTyped(filepaths: filepaths)
+  }
+
+   func testVariantsIllTyped() throws {
+       let resourcePath = "\(Bundle.module.resourcePath!)/Resources"
+       let filepaths = filepaths(in: resourcePath + "/variants/ill-typed")
+       checkIllTyped(filepaths: filepaths)
+   }
+
   // MARK: - Private Helpers
   
   private func checkWellTyped(filepaths: [String]) {
@@ -199,5 +227,4 @@ final class stella_implementation_in_swiftTests: XCTestCase {
     
     return contents.filter { $0.hasDirectoryPath == false }.map { $0.path }
   }
-  
 }

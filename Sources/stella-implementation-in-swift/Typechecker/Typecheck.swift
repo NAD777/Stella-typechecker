@@ -25,6 +25,7 @@ enum TypeErrorDescription {
   case illegalEmptyMatching
   case unexpectedPatternForType
   case nonexhaustiveMatchPatterns
+  case notAFunction
 }
 
 extension TypeErrorDescription: LocalizedError {
@@ -44,6 +45,8 @@ extension TypeErrorDescription: LocalizedError {
         return "Unexpected pattern for type"
       case .nonexhaustiveMatchPatterns:
         return "Nonexhaustive match patterns"
+      case .notAFunction:
+        return "Not a function"
     }
   }
 }
@@ -321,7 +324,16 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       return typeInitial
 
     case .fix(let expr):
-      assertionFailure("Not implemented")
+      let actualType = try typecheck(expr: expr, expected: expected, context: context.copy())
+      guard case .fun(let parameterTypes, let returnType) = actualType else {
+        throw TypecheckError.typeError(description: .notAFunction)
+      }
+
+      guard parameterTypes[0] == returnType else {
+        throw TypecheckError.typeError(description: .typeMismatch(expectedType: parameterTypes[0], givenType: returnType))
+      }
+
+      return returnType
 
     case .fold(let type, let expr):
       assertionFailure("Not implemented")
