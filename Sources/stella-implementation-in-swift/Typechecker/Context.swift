@@ -27,6 +27,7 @@ extension ContextError: LocalizedError {
 
 class Context {
   private var contextEntries: [ContextEntryName: StellaType] = [:] // contains funcs and variables
+  private(set) var exceptionType: StellaType?
 
   func add(name: ContextEntryName, type: StellaType) -> Self {
     self.contextEntries[name] = type
@@ -45,15 +46,16 @@ class Context {
   func copy() -> Context {
     let newContext = Context()
     newContext.contextEntries = contextEntries
+    newContext.exceptionType = exceptionType
 
     return newContext
   }
 }
 
 extension Context {
-  func add(paramDecls: [ParamDecl]) throws -> Self {
-    try paramDecls.forEach { decl in
-      _ = try self.add(name: decl.name, type: decl.type)
+  func add(paramDecls: [ParamDecl]) -> Self {
+    paramDecls.forEach { decl in
+      _ = self.add(name: decl.name, type: decl.type)
     }
 
     return self
@@ -67,14 +69,14 @@ extension Context {
           try self.assertNotPresent(for: name)
           let functionType = try typeForFunction(paramDecls: paramDecls, returnType: returnType)
 
-          _ = try self.add(name: name, type: functionType)
+          _ = self.add(name: name, type: functionType)
 
         case .declFunGeneric(let annotations, let name, let generics, let paramDecls, let returnType, let throwTypes, let localDecls, let returnExpr):
           assertionFailure("Not implemented")
         case .declTypeAlias(let name, let type):
           assertionFailure("Not implemented")
         case .declExceptionType(let exceptionType):
-          assertionFailure("Not implemented")
+          self.exceptionType = exceptionType
         case .declExceptionVariant(let name, let variantType):
           assertionFailure("Not implemented")
       }
@@ -87,6 +89,10 @@ extension Context {
 extension Context {
   var isMainPresent: Bool {
     contextEntries["main"] != nil
+  }
+
+  var exceptionTypeDefined: Bool {
+    exceptionType != nil
   }
 
   func assertNotPresent(for name: ContextEntryName) throws {

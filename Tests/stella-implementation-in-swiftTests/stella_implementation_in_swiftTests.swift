@@ -195,6 +195,20 @@ final class stella_implementation_in_swiftTests: XCTestCase {
        checkIllTyped(filepaths: filepaths)
    }
 
+  // MARK: - exceptions
+
+  func testExceptionsWellTyped() throws {
+      let resourcePath = "\(Bundle.module.resourcePath!)/Resources"
+      let filepaths = filepaths(in: resourcePath + "/exceptions/well-typed")
+      checkWellTyped(filepaths: filepaths)
+  }
+
+   func testExceptionsIllTyped() throws {
+       let resourcePath = "\(Bundle.module.resourcePath!)/Resources"
+       let filepaths = filepaths(in: resourcePath + "/exceptions/ill-typed")
+       checkIllTyped(filepaths: filepaths)
+   }
+
   // MARK: - Private Helpers
   
   private func checkWellTyped(filepaths: [String]) {

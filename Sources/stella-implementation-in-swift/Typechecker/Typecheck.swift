@@ -28,6 +28,10 @@ enum TypeErrorDescription {
   case notAFunction
   case unexpectedVariantLabel
   case ambiguousVariantType
+  case exceptionTypeNotDefined(exprType: StellaType)
+  case exceptionTypeNotDefinedGlobally
+  case ambiguousThrowType
+  case unexpectedLambda
 }
 
 extension TypeErrorDescription: LocalizedError {
@@ -53,6 +57,14 @@ extension TypeErrorDescription: LocalizedError {
         return "Unexpected variant label"
       case .ambiguousVariantType:
         return "Ambiguous variant type"
+      case .exceptionTypeNotDefinedGlobally:
+        return "Exception type is not defined globally"
+      case .exceptionTypeNotDefined(let exprType):
+        return "Exception type \(exprType) is not defined"
+      case .ambiguousThrowType:
+        return "Ambiguous throw type"
+      case .unexpectedLambda:
+        return "Unexpected lambda"
     }
   }
 }
@@ -111,8 +123,8 @@ func typecheck(decl: Decl, context: Context) throws {
       
     case .declExceptionType:
       print("decl exception type")
-      assertionFailure("Not implemented")
-      
+      break
+
     case let .declExceptionVariant(name, _):
       print("decl exception variant, name = \(name)")
       assertionFailure("Not implemented")
@@ -177,16 +189,60 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       return try context.get(by: name)
 
     case .panic:
-      return .bot
+      guard let expected else {
+        throw TypecheckError.typeError(description: .ambiguousThrowType)
+      }
+      return expected
 
     case .throw(let expr):
-      assertionFailure("Not implemented")
+      let exprType = try typecheck(expr: expr, expected: context.exceptionType, context: context.copy())
+
+      guard context.exceptionTypeDefined else  {
+        throw TypecheckError.typeError(description: .exceptionTypeNotDefinedGlobally)
+      }
+
+      guard exprType == context.exceptionType else {
+        throw TypecheckError.typeError(description: .exceptionTypeNotDefined(exprType: exprType))
+      }
+
+      guard let expected else {
+        throw TypecheckError.typeError(description: .ambiguousThrowType)
+      }
+
+      return expected
 
     case .tryCatch(let tryExpr, let pat, let fallbackExpr):
-      assertionFailure("Not implemented")
+      let tryExprType = try typecheck(expr: tryExpr, expected: expected, context: context.copy())
+      guard context.exceptionTypeDefined, let exceptionType = context.exceptionType else  {
+        throw TypecheckError.typeError(description: .exceptionTypeNotDefinedGlobally)
+      }
+
+      let fallbackExprCtx = try checkPattern(pattern: pat, type: exceptionType, context: context.copy())
+      let fallbackType = try typecheck(expr: fallbackExpr, expected: expected, context: fallbackExprCtx)
+
+      guard tryExprType == fallbackType else {
+        throw TypecheckError.typeError(description: .typeMismatch(expectedType: fallbackType, givenType: tryExprType))
+      }
+      return tryExprType
 
     case .tryWith(let tryExpr, let fallbackExpr):
-      assertionFailure("Not implemented")
+      let tryExprType = try typecheck(expr: tryExpr, expected: expected, context: context.copy())
+      let fallbackExprType = try typecheck(expr: fallbackExpr, expected: expected, context: context.copy())
+
+      if let expected {
+        guard tryExprType == expected else {
+          throw TypecheckError.typeError(description: .typeMismatch(expectedType: expected, givenType: tryExprType))
+        }
+        guard fallbackExprType == expected else {
+          throw TypecheckError.typeError(description: .typeMismatch(expectedType: expected, givenType: fallbackExprType))
+        }
+        return expected
+      } else {
+        guard tryExprType == fallbackExprType else {
+          throw TypecheckError.typeError(description: .custom("Try with tryExpr and fallbackExpr must have same type"))
+        }
+        return tryExprType
+      }
 
     case .inl(let expr):
       guard let expected else { 
@@ -428,15 +484,23 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       assertionFailure("Not implemented")
 
     case .abstraction(let paramDecls, let returnExpr):
+      var expectedReturnType: StellaType? = nil
+      if let expected {
+        guard case .fun(_, let expectedReturn) = expected else {
+          throw TypecheckError.typeError(description: .unexpectedLambda)
+        }
+        expectedReturnType = expectedReturn
+      }
+
       guard paramDecls.count == 1 else {
         throw TypecheckError.onlyOneArgument
       }
 
-      let newContext = try context
+      let newContext = context
         .copy()
         .add(paramDecls: paramDecls)
 
-      let exprResultType = try typecheck(expr: returnExpr, expected: nil, context: newContext)
+      let exprResultType = try typecheck(expr: returnExpr, expected: expectedReturnType, context: newContext)
 
       return .fun(parameterTypes: paramDecls.map(\.type), returnType: exprResultType)
 
