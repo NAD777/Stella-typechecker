@@ -200,7 +200,7 @@ public struct PatternBinding {
 
 // MARK: - Types
 
-public indirect enum StellaType {
+public indirect enum StellaType: Hashable {
     
     case bool
     case nat
@@ -209,24 +209,24 @@ public indirect enum StellaType {
     case forAll(types: [String], type: StellaType)
     case sum(left: StellaType, right: StellaType)
     case tuple(types: [StellaType])
-    case list(types: [StellaType])
+    case list(type: StellaType)
     case record(fieldTypes: [RecordFieldType])
     case variant(fieldTypes: [VariantFieldType])
     case top
     case ref(type: StellaType)
     case bot
     case `var`(name: String)
-    
+    case undefined
 }
 
-public struct RecordFieldType {
+public struct RecordFieldType: Hashable {
     
     var label: String
     var type: StellaType
     
 }
 
-public struct VariantFieldType {
+public struct VariantFieldType: Hashable {
     
     var label: String
     var type: StellaType?

@@ -1,0 +1,7 @@
+language core;
+
+extend with #letrec-bindings;
+
+fn main(n : Nat) -> Nat {
+  return let bad = succ(0) in succ(bad)
+}
