@@ -24,7 +24,7 @@ enum TypeErrorDescription {
   case typeMismatch(expectedType: StellaType, givenType: StellaType)
   case illegalEmptyMatching
   case unexpectedPatternForType
-  case nonexhaustiveMatchPatterns
+  case nonExhaustiveMatchPatterns
   case notAFunction
   case unexpectedVariantLabel
   case ambiguousVariantType
@@ -49,7 +49,7 @@ extension TypeErrorDescription: LocalizedError {
         return "Illegal empty matching"
       case .unexpectedPatternForType:
         return "Unexpected pattern for type"
-      case .nonexhaustiveMatchPatterns:
+      case .nonExhaustiveMatchPatterns:
         return "Nonexhaustive match patterns"
       case .notAFunction:
         return "Not a function"
@@ -105,7 +105,7 @@ func typecheck(decl: Decl, context: Context) throws {
   switch decl {
     case let .declFun(_, name, paramDecls, returnType, _, _, returnExpr):
       print("decl function, name = \(name)")
-      let newContext = try context
+      let newContext = context
         .copy()
         .add(paramDecls: paramDecls)
 
@@ -182,7 +182,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
     case .constInt:
       return .nat
 
-    case .constMemory(let mem):
+    case .constMemory(_):
       return .ref(type: .nat) // TODO: NAT??? 
 
     case .var(let name):
@@ -587,11 +587,9 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
           description: .illegalEmptyMatching
         )
       }
-//      guard cases.count == 2 else { // TODO: implement check for exhaustiveness!
-//        throw TypecheckError.typeError(
-//          description: .nonexhaustiveMatchPatterns
-//        )
-//      }
+      guard isExhaustive(exprType: exprType, casePatterns: cases.map(\.pattern)) else {
+        throw TypecheckError.typeError(description: .nonExhaustiveMatchPatterns)
+      }
       return caseBodyExpectedType
     case .list(let exprs):
       let listTypes = try exprs.map { try typecheck(expr: $0, expected: nil, context: context.copy()) }
