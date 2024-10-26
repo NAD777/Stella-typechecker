@@ -4,7 +4,20 @@ import XCTest
 final class stella_implementation_in_swiftTests: XCTestCase {
   
   // MARK: - Tests
-  
+  func testRunInput() {
+    let resourcePath = "\(Bundle.module.resourcePath!)/Resources"
+    let filepaths = filepaths(in: resourcePath + "/inputs")
+    for filepath in filepaths {
+      print("Test run: Typechecking file <\(filepath.split(separator: "/").last!)>")
+      do {
+        try stella_implementation_in_swift.typecheck_file(filepath: filepath)
+        print("Test run: Program is well-typed!")
+      } catch let error {
+        print("Test run: TypecheckError \(error.localizedDescription)")
+      }
+    }
+  }
+
   func testCoreWellTyped() throws {
     let resourcePath = "\(Bundle.module.resourcePath!)/Resources"
     let filepaths = filepaths(in: resourcePath + "/core/well-typed")
@@ -194,6 +207,18 @@ final class stella_implementation_in_swiftTests: XCTestCase {
        let filepaths = filepaths(in: resourcePath + "/variants/ill-typed")
        checkIllTyped(filepaths: filepaths)
    }
+
+//  func testVariantsNullaryWellTyped() throws {
+//      let resourcePath = "\(Bundle.module.resourcePath!)/Resources"
+//      let filepaths = filepaths(in: resourcePath + "/variants/nullary/well-typed")
+//      checkWellTyped(filepaths: filepaths)
+//  }
+//
+//   func testVariantsNullaryIllTyped() throws {
+//       let resourcePath = "\(Bundle.module.resourcePath!)/Resources"
+//       let filepaths = filepaths(in: resourcePath + "/variants/nullary/ill-typed")
+//       checkIllTyped(filepaths: filepaths)
+//   }
 
   // MARK: - exceptions
 
