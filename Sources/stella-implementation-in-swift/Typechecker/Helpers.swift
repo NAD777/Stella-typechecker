@@ -22,7 +22,7 @@ func typeForFunction(paramDecls: [ParamDecl], returnType: StellaType?) throws ->
 func assertEqual(expected: StellaType?, given: StellaType) throws {
   guard let expected else { return }
 
-  guard expected == given else {
+  guard given == expected else {
     throw TypecheckError.typeError(description: .typeMismatch(expectedType: expected, givenType: given))
   }
 }

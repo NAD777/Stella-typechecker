@@ -18,14 +18,14 @@ extension ContextError: LocalizedError {
   var errorDescription: String? {
     switch self {
       case .contextEntryAlreadyExist(let name):
-        "Context entrie with name \(name) already exist"
+        "Context entry with name `\(name)` already exist"
       case .contextEntryDoesNotExist(let name):
-        "Context entries with name \(name) does not exist"
+        "ERROR_UNDEFINED_VARIABLE Context entry with name `\(name)` does not exist"
     }
   }
 }
 
-class Context {
+final class Context {
   private var contextEntries: [ContextEntryName: StellaType] = [:] // contains funcs and variables
   private(set) var exceptionType: StellaType?
 

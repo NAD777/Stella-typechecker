@@ -8,13 +8,15 @@ final class stella_implementation_in_swiftTests: XCTestCase {
     let resourcePath = "\(Bundle.module.resourcePath!)/Resources"
     let filepaths = filepaths(in: resourcePath + "/inputs")
     for filepath in filepaths {
+      print("------------------------------------------------------------")
       print("Test run: Typechecking file <\(filepath.split(separator: "/").last!)>")
       do {
         try stella_implementation_in_swift.typecheck_file(filepath: filepath)
         print("Test run: Program is well-typed!")
       } catch let error {
-        print("Test run: TypecheckError \(error.localizedDescription)")
+        print("Test run: TypecheckError \(error) \n\(error.localizedDescription)")
       }
+      print("------------------------------------------------------------")
     }
   }
 

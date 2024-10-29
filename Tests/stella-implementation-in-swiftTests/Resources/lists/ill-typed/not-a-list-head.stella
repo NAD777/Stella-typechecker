@@ -2,7 +2,7 @@ language core;
 extend with #lists;
 
 fn test(b : Bool) -> Nat {
-    return if b then 0 else succ(succ(0));
+    return if b then 0 else succ(succ(0))
 }
 
 fn length(list : [Nat]) -> Nat {

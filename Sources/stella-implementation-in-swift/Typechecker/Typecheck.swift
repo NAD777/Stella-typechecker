@@ -7,31 +7,59 @@
 
 import Foundation
 
+enum Config {
+  enum Mode {
+    case debug
+    case prod
+  }
+
+  static let mode: Mode = .prod
+}
+
+func _print(_ items: Any..., separator: String = " ", terminator: String = "\n") {
+  guard Config.mode == .debug else { return }
+
+  print(items, separator: separator, terminator: terminator)
+}
+
 enum TypecheckError: Error {
   case missingMain
   case requiredReturnType
   case onlyOneArgument
   case notImplemented
-  case emptyMatching
-  case notSupported(String)
   case typeError(description: TypeErrorDescription)
 }
 
 enum TypeErrorDescription {
   case custom(String)
   case listContainsDifferentTypes
-  case expectedList
+  case expectedList(actualType: StellaType)
+  case unexpectedList(expectedType: StellaType)
+  case ambiguousListType
   case typeMismatch(expectedType: StellaType, givenType: StellaType)
   case illegalEmptyMatching
   case unexpectedPatternForType
   case nonExhaustiveMatchPatterns
-  case notAFunction
+  case notAFunction(actualType: StellaType)
+  case notATuple(actualType: StellaType)
   case unexpectedVariantLabel
   case ambiguousVariantType
   case exceptionTypeNotDefined(exprType: StellaType)
   case exceptionTypeNotDefinedGlobally
   case ambiguousThrowType
+  case ambiguousPanicType
   case unexpectedLambda
+  case tupleIndexOutOfBounds(index: Int)
+  case unexpectedTuple
+  case unexpectedVariant
+  case ambiguousReferenceType
+  case unexpectedMemoryAddress
+  case notAReference(actualType: StellaType)
+  case unexpectedFieldAccess(fieldName: String, recordType: StellaType)
+  case unexpectedInjection(expectedType: StellaType)
+  case ambiguousSumType
+  case unexpectedTupleLength(expected: Int, actual: Int)
+  case unexpectedRecordType(expectedType: StellaType)
 }
 
 extension TypeErrorDescription: LocalizedError {
@@ -40,31 +68,61 @@ extension TypeErrorDescription: LocalizedError {
       case .custom(let string):
         return string
       case .typeMismatch(let expectedType, let givenType):
-        return "Type mismatch: expected type \(expectedType.description), but \(givenType) was provided"
+        return "ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION: Type mismatch: expected type `\(expectedType.description)`, but `\(givenType.description)` was provided"
       case .listContainsDifferentTypes:
-        return "The list must contain values of the same type"
-      case .expectedList:
-        return "Expected list type"
+        return "ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION: The list must contain values of the same type"
+      case .expectedList(let actualType):
+        return "ERROR_NOT_A_LIST: Expected list type, but actual type is `\(actualType.description)`"
       case .illegalEmptyMatching:
-        return "Illegal empty matching"
+        return "ERROR_ILLEGAL_EMPTY_MATCHING: Illegal empty matching"
       case .unexpectedPatternForType:
-        return "Unexpected pattern for type"
+        return "ERROR_UNEXPECTED_PATTERN_FOR_TYPE: Unexpected pattern for type"
       case .nonExhaustiveMatchPatterns:
-        return "Nonexhaustive match patterns"
-      case .notAFunction:
-        return "Not a function"
+        return "ERROR_NONEXHAUSTIVE_MATCH_PATTERNS: Nonexhaustive match patterns"
+      case .notAFunction(let actualType):
+        return "ERROR_NOT_A_FUNCTION: Expected a function type but got \(actualType.description)"
       case .unexpectedVariantLabel:
-        return "Unexpected variant label"
+        return "ERROR_UNEXPECTED_VARIANT_LABEL: Unexpected variant label"
       case .ambiguousVariantType:
-        return "Ambiguous variant type"
+        return "ERROR_AMBIGUOUS_VARIANT_TYPE: Ambiguous variant type"
       case .exceptionTypeNotDefinedGlobally:
-        return "Exception type is not defined globally"
+        return "ERROR_EXCEPTION_TYPE_NOT_DECLARED: Exception type is not defined globally"
       case .exceptionTypeNotDefined(let exprType):
-        return "Exception type \(exprType) is not defined"
+        return "ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION: Exception type `\(exprType.description)` is not defined"
       case .ambiguousThrowType:
-        return "Ambiguous throw type"
+        return "ERROR_AMBIGUOUS_THROW_TYPE: Ambiguous throw type"
+      case .ambiguousPanicType:
+        return "ERROR_AMBIGUOUS_PANIC_TYPE: Ambiguous panic type"
       case .unexpectedLambda:
-        return "Unexpected lambda"
+        return "ERROR_UNEXPECTED_LAMBDA: Unexpected lambda"
+      case .unexpectedList:
+        return "ERROR_UNEXPECTED_LIST: Unexpected list"
+      case .tupleIndexOutOfBounds(index: let index):
+        return "ERROR_TUPLE_INDEX_OUT_OF_BOUNDS: Unexpected access to component number \(index)"
+      case .notATuple(let actualType):
+        return "ERROR_NOT_A_TUPLE: Expected an expression of tuple type but got `\(actualType.description)`"
+      case .unexpectedTuple:
+        return "ERROR_UNEXPECTED_TUPLE: Expected an expression of a non-tuple type"
+      case .unexpectedVariant:
+        return "ERROR_UNEXPECTED_VARIANT: Expected an expression of a non-variant type"
+      case .ambiguousReferenceType:
+        return "ERROR_AMBIGUOUS_REFERENCE_TYPE: Ambiguous reference type"
+      case .unexpectedMemoryAddress:
+        return "ERROR_UNEXPECTED_MEMORY_ADDRESS: Unexpected memory address"
+      case .notAReference(actualType: let actualType):
+        return "ERROR_NOT_A_REFERENCE: Expected an expression of reference type but got `\(actualType.description)`"
+      case .unexpectedFieldAccess(fieldName: let fieldName, recordType: let recordType):
+        return "ERROR_UNEXPECTED_FIELD_ACCESS: unexpected access to field `\(fieldName)` in record of type `\(recordType.description)`"
+      case .unexpectedInjection(expectedType: let expectedType):
+        return "ERROR_UNEXPECTED_INJECTION: expected an expression of a non-sum type `\(expectedType.description)`"
+      case .unexpectedTupleLength(expected: let expected, actual: let actual):
+        return "ERROR_UNEXPECTED_TUPLE_LENGTH: Expected tuple of length \(expected), but actual length is \(actual)"
+      case .ambiguousListType:
+        return "ERROR_AMBIGUOUS_LIST_TYPE: Ambiguous list type"
+      case .ambiguousSumType:
+        return "ERROR_AMBIGUOUS_SUM_TYPE: type inference for sum types is not supported"
+      case .unexpectedRecordType(expectedType: let expectedType):
+        return "ERROR_UNEXPECTED_RECORD: unexpected record type, where expected type `\(expectedType)`"
     }
   }
 }
@@ -73,19 +131,15 @@ extension TypecheckError: LocalizedError {
   var errorDescription: String? {
     switch self {
       case .missingMain:
-        "No main function in program"
+        "ERROR_MISSING_MAIN No main function in program"
       case .requiredReturnType:
         "Return type is required"
       case .onlyOneArgument:
-        "Exactly one argument expected in function declaration"
+        "ERROR_INCORRECT_NUMBER_OF_ARGUMENTS: Exactly one argument expected in function declaration"
       case .typeError(description: let description):
         description.errorDescription
       case .notImplemented:
         "Not implemented"
-      case .emptyMatching:
-        "Empty matching"
-      case .notSupported(let msg):
-        "Not supported: \(msg)"
     }
   }
 }
@@ -104,7 +158,7 @@ public func typecheck(program: Program) throws {
 func typecheck(decl: Decl, context: Context) throws {
   switch decl {
     case let .declFun(_, name, paramDecls, returnType, _, _, returnExpr):
-      print("decl function, name = \(name)")
+      _print("decl function, name = \(name)")
       let newContext = context
         .copy()
         .add(paramDecls: paramDecls)
@@ -114,19 +168,19 @@ func typecheck(decl: Decl, context: Context) throws {
       try assertEqual(expected: returnType, given: obtainedType)
 
     case let .declFunGeneric(_, name, _, _, _, _, _, _):
-      print("decl function generic, name = \(name)")
+      _print("decl function generic, name = \(name)")
       assertionFailure("Not implemented")
       
     case let .declTypeAlias(name, _):
-      print("decl type alias, name = \(name)")
+      _print("decl type alias, name = \(name)")
       assertionFailure("Not implemented")
       
     case .declExceptionType:
-      print("decl exception type")
+      _print("decl exception type")
       break
 
     case let .declExceptionVariant(name, _):
-      print("decl exception variant, name = \(name)")
+      _print("decl exception variant, name = \(name)")
       assertionFailure("Not implemented")
   }
 }
@@ -134,42 +188,6 @@ func typecheck(decl: Decl, context: Context) throws {
 
 func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> StellaType {
   switch expr {
-    case .dotRecord(let expr, let label):
-      let recordType = try typecheck(expr: expr, expected: nil, context: context.copy())
-      guard case let .record(fieldTypes) = recordType else {
-          throw TypecheckError.typeError(
-            description: .custom("DotRecord operator must be applied to record type, got \(recordType.description)")
-          )
-      }
-
-      guard let fieldType = fieldTypes.first(where: { $0.label == label }) else {
-          throw TypecheckError.typeError(
-            description: .custom("No label \(label) in record \(recordType.description)")
-          )
-      }
-
-      try assertEqual(expected: expected, given: fieldType.type)
-
-      return fieldType.type
-
-    case .dotTuple(let expr, let index):
-      let tupleType = try typecheck(expr: expr, expected: nil, context: context.copy())
-      guard case let .tuple(types) = tupleType else {
-          throw TypecheckError.typeError(
-              description: .custom("DotTuple operator must be applied to pairs or tuples, got \(tupleType.description)")
-          )
-      }
-
-      guard 0 < index, index <= types.count else {
-          throw TypecheckError.typeError(
-              description: .custom("Invalid index in dot Tuple")
-          )
-      }
-
-      try assertEqual(expected: expected, given: types[index - 1])
-
-      return types[index - 1]
-
     case .constTrue:
       return .bool
 
@@ -183,23 +201,30 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       return .nat
 
     case .constMemory(_):
-      return .ref(type: .nat) // TODO: NAT??? 
+      guard let expected else {
+        throw TypecheckError.typeError(description: .ambiguousReferenceType)
+      }
+      guard case .ref(_) = expected else {
+        throw TypecheckError.typeError(description: .unexpectedMemoryAddress)
+      }
+
+      return expected
 
     case .var(let name):
       return try context.get(by: name)
 
     case .panic:
       guard let expected else {
-        throw TypecheckError.typeError(description: .ambiguousThrowType)
+        throw TypecheckError.typeError(description: .ambiguousPanicType)
       }
       return expected
 
     case .throw(let expr):
-      let exprType = try typecheck(expr: expr, expected: context.exceptionType, context: context.copy())
-
       guard context.exceptionTypeDefined else  {
         throw TypecheckError.typeError(description: .exceptionTypeNotDefinedGlobally)
       }
+
+      let exprType = try typecheck(expr: expr, expected: context.exceptionType, context: context.copy())
 
       guard exprType == context.exceptionType else {
         throw TypecheckError.typeError(description: .exceptionTypeNotDefined(exprType: exprType))
@@ -220,6 +245,16 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       let fallbackExprCtx = try checkPattern(pattern: pat, type: exceptionType, context: context.copy())
       let fallbackType = try typecheck(expr: fallbackExpr, expected: expected, context: fallbackExprCtx)
 
+      if let expected {
+        guard tryExprType == expected else {
+          throw TypecheckError.typeError(description: .typeMismatch(expectedType: expected, givenType: tryExprType))
+        }
+        guard fallbackType == expected else {
+          throw TypecheckError.typeError(description: .typeMismatch(expectedType: expected, givenType: fallbackType))
+        }
+        return expected
+      }
+
       guard tryExprType == fallbackType else {
         throw TypecheckError.typeError(description: .typeMismatch(expectedType: fallbackType, givenType: tryExprType))
       }
@@ -239,17 +274,17 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
         return expected
       } else {
         guard tryExprType == fallbackExprType else {
-          throw TypecheckError.typeError(description: .custom("Try with tryExpr and fallbackExpr must have same type"))
+          throw TypecheckError.typeError(description: .custom("ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION: Try with tryExpr and fallbackExpr must have same type"))
         }
         return tryExprType
       }
 
     case .inl(let expr):
-      guard let expected else { 
-        throw TypecheckError.typeError(description: .custom("type inference of sum types is not supported (use type ascriptions)"))
+      guard let expected else {
+        throw TypecheckError.typeError(description: .ambiguousSumType)
       }
       guard case .sum(let lhs, _) = expected else {
-        throw TypecheckError.typeError(description: .custom("Expected type for expression is not sum type"))
+        throw TypecheckError.typeError(description: .unexpectedInjection(expectedType: expected))
       }
       let actualType = try typecheck(expr: expr, expected: lhs, context: context.copy())
       guard lhs == actualType else {
@@ -259,10 +294,10 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
 
     case .inr(let expr):
       guard let expected else {
-        throw TypecheckError.typeError(description: .custom("type inference of sum types is not supported (use type ascriptions)"))
+        throw TypecheckError.typeError(description: .ambiguousSumType)
       }
       guard case .sum(_, let rhs) = expected else {
-        throw TypecheckError.typeError(description: .custom("Expected type for expression is not sum type"))
+        throw TypecheckError.typeError(description: .unexpectedInjection(expectedType: expected))
       }
       let actualType = try typecheck(expr: expr, expected: rhs, context: context.copy())
       guard rhs == actualType else {
@@ -271,18 +306,26 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       return expected
 
     case .listCons(let head, let tail):
-      guard case .list(let exprs) = tail else {
-        assertionFailure("Something wrong!")
-        return .bot
+      if let expected, expected.isList == false {
+        throw TypecheckError.typeError(description: .unexpectedList(expectedType: expected))
       }
-      let listExpr: Expr = .list(exprs: [head] + exprs)
-      // TODO: do it more verbose
-      return try typecheck(expr: listExpr, expected: expected, context: context.copy())
+      var exp: StellaType? = nil
+      if let expected, case .list(let elementType) = expected {
+        exp = elementType
+      }
+      let headType = try typecheck(expr: head, expected: exp, context: context.copy())
+      let tailType = try typecheck(expr: tail, expected: expected, context: context.copy())
+      guard case .list(let tailElementType) = tailType else {
+        throw TypecheckError.typeError(description: .expectedList(actualType: tailType))
+      }
+      try assertEqual(expected: headType, given: tailElementType)
+
+      return tailType
 
     case .listHead(let list):
       let listType = try typecheck(expr: list, expected: nil, context: context.copy())
       guard case .list(let type) = listType else {
-        throw TypecheckError.typeError(description: .expectedList)
+        throw TypecheckError.typeError(description: .expectedList(actualType: listType))
       }
 
       try assertEqual(expected: expected, given: type)
@@ -293,7 +336,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       let type = try typecheck(expr: list, expected: nil, context: context.copy())
 
       guard case .list(_) = type else {
-        throw TypecheckError.typeError(description: .custom("Expected list type, but actual type is \(type.description)"))
+        throw TypecheckError.typeError(description: .expectedList(actualType: type))
       }
 
       try assertEqual(expected: expected, given: .bool)
@@ -304,7 +347,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       let type = try typecheck(expr: list, expected: nil, context: context.copy())
 
       guard case .list(_) = type else {
-        throw TypecheckError.typeError(description: .custom("Expected list type, but actual type is \(type.description)"))
+        throw TypecheckError.typeError(description: .expectedList(actualType: type))
       }
 
       try assertEqual(expected: expected, given: type)
@@ -328,7 +371,11 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       return .bool
 
     case .natPred(let n):
-      assertionFailure("Not implemented")
+      let type = try typecheck(expr: n, expected: .nat, context: context.copy())
+      guard type == .nat else {
+        throw TypecheckError.typeError(description: .typeMismatch(expectedType: .nat, givenType: type))
+      }
+      return .nat
 
     case .natIsZero(let n):
       let type = try typecheck(expr: n, expected: .nat, context: context.copy())
@@ -347,7 +394,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       let typeN = try typecheck(expr: n, expected: .nat, context: context.copy())
       guard typeN == .nat else {
         throw TypecheckError.typeError(
-          description: .custom("First parameter in <Nat::rec> is expected to be Nat, got \(typeN.description)")
+          description: .custom("ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION: First parameter in <Nat::rec> is expected to be Nat, got \(typeN.description)")
         )
       }
 
@@ -369,7 +416,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
         parameterTypesStep[0] == .nat
       else {
         throw TypecheckError.typeError(
-          description: .custom("Third parameter in <Nat::rec> is expected to be Fun(Nat) -> (Fun(T) -> T), got \(typeStep.description)")
+          description: .custom("ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION: Third parameter in <Nat::rec> is expected to be Fun(Nat) -> (Fun(T) -> T), got \(typeStep.description)")
         )
       }
 
@@ -379,7 +426,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
         lambdaReturnType == typeInitial
       else {
         throw TypecheckError.typeError(
-          description: .custom("Return type of the third parameter in <Nat::rec> is expected to be Fun(\(typeInitial.description)) -> \(typeInitial.description), got \(typeStep.description)")
+          description: .custom("ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION: Return type of the third parameter in <Nat::rec> is expected to be Fun(\(typeInitial.description)) -> \(typeInitial.description), got \(typeStep.description)")
         )
       }
 
@@ -388,7 +435,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
     case .fix(let expr):
       let actualType = try typecheck(expr: expr, expected: expected, context: context.copy())
       guard case .fun(let parameterTypes, let returnType) = actualType else {
-        throw TypecheckError.typeError(description: .notAFunction)
+        throw TypecheckError.typeError(description: .notAFunction(actualType: actualType))
       }
 
       guard parameterTypes[0] == returnType else {
@@ -397,10 +444,10 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
 
       return returnType
 
-    case .fold(let type, let expr):
+    case .fold(_, _):
       assertionFailure("Not implemented")
 
-    case .unfold(let type, let expr):
+    case .unfold(_, _):
       assertionFailure("Not implemented")
 
     case .application(let expr, let exprs):
@@ -411,21 +458,19 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       let funcType = try typecheck(expr: expr, expected: nil, context: context.copy())
       guard case let .fun(parameterTypes, returnType) = funcType else {
         throw TypecheckError.typeError(
-          description: .custom("Expected TypeFun, got \(funcType.description)")
+          description: .notAFunction(actualType: funcType)
         )
       }
 
       let argType = try typecheck(expr: exprs[0], expected: parameterTypes[0], context: context.copy())
 
       guard parameterTypes[0] == argType else {
-        throw TypecheckError.typeError(
-          description: .custom("Expected type \(parameterTypes[0].description) but got \(argType.description)")
-        )
+        throw TypecheckError.typeError(description: .typeMismatch(expectedType: parameterTypes[0], givenType: argType))
       }
 
       return returnType
 
-    case .typeApplication(let expr, let types):
+    case .typeApplication(_, _):
       assertionFailure("Not implemented")
 
     case .multiply(let left, let right),
@@ -459,16 +504,16 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       return .bool
 
     case .ref(let expr):
-      let type = try typecheck(expr: expr, expected: .nat, context: context.copy()) // TODO: nat?
+      let type = try typecheck(expr: expr, expected: .nat, context: context.copy())
 
       return .ref(type: type)
 
     case .deref(let expr):
-      let type = try typecheck(expr: expr, expected: .ref(type: .nat), context: context.copy()) // TODO: ref-nat?
+      let type = try typecheck(expr: expr, expected: .ref(type: .nat), context: context.copy())
 
       guard case let .ref(refType) = type else {
         throw TypecheckError.typeError(
-          description: .custom("Can dereference only Ref type, got \(type.description)")
+          description: .notAReference(actualType: type)
         )
       }
       return refType
@@ -480,7 +525,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       }
       return ascribedType
 
-    case .typeCast(let expr, let type):
+    case .typeCast(_, _):
       assertionFailure("Not implemented")
 
     case .abstraction(let paramDecls, let returnExpr):
@@ -507,10 +552,11 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
     case .tuple(let exprs):
       if let expected {
         guard case .tuple(let types) = expected else {
-          throw TypecheckError.typeError(description: .custom("Expected not tuple type"))
+          throw TypecheckError.typeError(description: .unexpectedTuple)
+
         }
         guard types.count == exprs.count else {
-          throw TypecheckError.typeError(description: .custom("Expected tuple of length \(types.count), but actual is \(exprs.count)"))
+          throw TypecheckError.typeError(description: .unexpectedTupleLength(expected: types.count, actual: exprs.count))
         }
         return try .tuple(
           types: zip(types, exprs).map {
@@ -520,20 +566,61 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       }
       return try .tuple(types: exprs.map { try typecheck(expr: $0, expected: nil, context: context.copy()) })
 
+    case .dotTuple(let expr, let index):
+      let tupleType = try typecheck(expr: expr, expected: nil, context: context.copy())
+      guard case let .tuple(types) = tupleType else {
+          throw TypecheckError.typeError(
+            description: .notATuple(actualType: tupleType)
+          )
+      }
+
+      guard 0 < index, index <= types.count else {
+          throw TypecheckError.typeError(
+            description: .tupleIndexOutOfBounds(index: index)
+          )
+      }
+
+      try assertEqual(expected: expected, given: types[index - 1])
+
+      return types[index - 1]
+
     case .record(let bindings):
+      if let expected {
+        guard case .record(_) = expected else {
+          throw TypecheckError.typeError(description: .unexpectedRecordType(expectedType: expected))
+        }
+      }
       let recordNames = bindings.map(\.name)
       guard recordNames.allElementsUnique == true else {
         throw TypecheckError.typeError(
-          description: .custom("Duplicate record type fields")
+          description: .custom("ERROR_DUPLICATE_RECORD_FIELDS: Duplicate record type fields")
         )
       }
 
       return .record(
           fieldTypes: try bindings.map { RecordFieldType(
               label: $0.name,
-              type: try typecheck(expr: $0.rhs, expected: nil, context: context.copy()) // TODO: expected?
+              type: try typecheck(expr: $0.rhs, expected: nil, context: context.copy())
           )}
       )
+
+    case .dotRecord(let expr, let label):
+      let recordType = try typecheck(expr: expr, expected: nil, context: context.copy())
+      guard case let .record(fieldTypes) = recordType else {
+          throw TypecheckError.typeError(
+            description: .custom("ERROR_NOT_A_RECORD: DotRecord operator must be applied to record type, got \(recordType.description)")
+          )
+      }
+
+      guard let fieldType = fieldTypes.first(where: { $0.label == label }) else {
+          throw TypecheckError.typeError(
+            description: .unexpectedFieldAccess(fieldName: label, recordType: recordType)
+          )
+      }
+
+      try assertEqual(expected: expected, given: fieldType.type)
+
+      return fieldType.type
 
     case .variant(let label, let expr):
       guard let expected else {
@@ -541,11 +628,11 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       }
 
       guard case .variant(let fieldTypes) = expected else {
-        throw TypecheckError.typeError(description: .custom("Expected not variant type"))
+        throw TypecheckError.typeError(description: .unexpectedVariant)
       }
 
       guard fieldTypes.count > 0 else {
-        throw TypecheckError.typeError(description: .custom("Expected variant type with at least one field"))
+        throw TypecheckError.typeError(description: .custom("ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION: Expected variant type with at least one field"))
       }
 
       guard let field = fieldTypes.first(where: { $0.label == label }) else {
@@ -591,6 +678,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
         throw TypecheckError.typeError(description: .nonExhaustiveMatchPatterns)
       }
       return caseBodyExpectedType
+
     case .list(let exprs):
       let listTypes = try exprs.map { try typecheck(expr: $0, expected: nil, context: context.copy()) }
 
@@ -600,7 +688,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       
       if let expected {
         guard case .list(type: let expectedElementsType) = expected  else {
-          throw TypecheckError.typeError(description: .custom("Expected type is not list"))
+          throw TypecheckError.typeError(description: .unexpectedList(expectedType: expected))
         }
 
         if listTypes.count == 0 {
@@ -613,13 +701,12 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
         }
 
         guard actualElementsType == expectedElementsType else {
-          throw TypecheckError.typeError(description: .custom("Expected elements of list is \(expectedElementsType), but actual type is \(actualElementsType)"))
+          throw TypecheckError.typeError(description: .custom("ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION: Expected elements of list is \(expectedElementsType), but actual type is \(actualElementsType)"))
         }
-        // TODO: test this!
       }
 
       guard let first = listTypes.first else {
-        throw TypecheckError.typeError(description: .custom("Error ambiguous list type"))
+        throw TypecheckError.typeError(description: .ambiguousListType)
       }
 
       return .list(type: first)
@@ -647,7 +734,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
 
       guard leftType == rightType else {
         throw TypecheckError.typeError(
-          description: .custom("Lhs and rhs of equal exp must be the same type, got \(leftType.description) and  \(rightType.description)")
+          description: .custom("ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION: Lhs and rhs of equal exp must be the same type, got \(leftType.description) and  \(rightType.description)")
         )
       }
 
@@ -658,11 +745,12 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       let rhsType = try typecheck(expr: rhs, expected: nil, context: context.copy())
 
       guard case .ref(let refExprType) = lhsType else {
-        throw TypecheckError.typeError(description: .custom("Expected type ref to assign"))
+        throw TypecheckError.typeError(description: .notAReference(actualType: lhsType))
       }
 
       guard refExprType == rhsType else {
-        throw TypecheckError.typeError(description: .custom("Expected type ref to \(refExprType), but try to assign \(rhsType) value"))
+//        throw TypecheckError.typeError(description: .custom("Expected type ref to \(refExprType), but try to assign \(rhsType) value"))
+        throw TypecheckError.typeError(description: .typeMismatch(expectedType: refExprType, givenType: rhsType))
       }
 
       return .unit
@@ -672,7 +760,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
 
       guard conditionType == .bool else {
         throw TypecheckError.typeError(
-          description: .custom("If condition must have Bool type but \(conditionType.description) was provided")
+          description: .custom("ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION: If condition must have `Bool` type but \(conditionType.description) was provided")
         )
       }
 
@@ -681,7 +769,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
 
       guard (thenExprType == elseExprType) || (elseExprType == thenExprType) else {
         throw TypecheckError.typeError(
-          description: .custom("If's then and else blocks must have the same type")
+          description: .custom("ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION: If's then and else blocks must have the same type")
         )
       }
 
@@ -700,7 +788,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
 
       return try typecheck(expr: body, expected: expected, context: newContext)
 
-    case .letRec(let patternBindings, let body):
+    case .letRec(_, _):
       assertionFailure("Not implemented")
 
     case .typeAbstraction(let generics, let expr):
@@ -716,7 +804,7 @@ func typecheck(expr: Expr, expected: StellaType?, context: Context) throws -> St
       let type1 = try typecheck(expr: expr1, expected: .unit, context: context)
       guard type1 == .unit else {
           throw TypecheckError.typeError(
-            description: .custom("Match should have at least one case")
+            description: .illegalEmptyMatching
           )
       }
 
@@ -748,6 +836,8 @@ func checkPattern(pattern: Pattern, type: StellaType, context: Context) throws -
         throw TypecheckError.typeError(description: .unexpectedPatternForType)
       }
       return try checkPattern(pattern: innerPattern!, type: field.type!, context: context.copy())
+    case .int(_):
+      return context
     default:
       fatalError("Not implemented")
   }

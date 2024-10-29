@@ -66,7 +66,7 @@ extension StellaType: CustomStringConvertible {
   public var description: String {
     switch self {
       case let .fun(parameterTypes, returnType):
-        return "fun(\(parameterTypes[0].description)) -> (\(returnType.description))"
+        return "fun(\(parameterTypes[0].description)) -> \(returnType.description)"
       case let .forAll(types, type):
         return "forall \(String(types.reduce("(") { $0 + $1.description + ","}.dropLast()))).\(type.description)"
       case .bool:
@@ -95,6 +95,17 @@ extension StellaType: CustomStringConvertible {
         return "var(\(name))"
       case .undefined:
         return "No type"
+    }
+  }
+}
+
+extension StellaType {
+  var isList: Bool {
+    switch self {
+      case .list(type: _):
+        true
+      default:
+        false
     }
   }
 }
