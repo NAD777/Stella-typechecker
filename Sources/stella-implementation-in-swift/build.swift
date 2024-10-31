@@ -62,7 +62,7 @@ public func buildType(ctx: stellaParser.StellatypeContext) throws -> StellaType 
         return try .variant(
             fieldTypes: ctx.fieldTypes.map{
                 .init(label: $0.label.getText()!,
-                      type: try buildType(ctx: $0.type_))
+                      type: try $0.stellatype().map { try buildType(ctx: $0) } )
             }
         )
         
@@ -318,7 +318,7 @@ public func buildExpr(ctx: stellaParser.ExprContext) throws -> Expr {
     case let ctx as stellaParser.VariantContext:
         return try .variant(
             label: ctx.label.getText()!,
-            rhs: buildExpr(ctx: ctx.rhs)
+            rhs: ctx.expr().map(buildExpr)
         )
         
     case let ctx as stellaParser.MatchContext:
@@ -421,8 +421,8 @@ public func buildExpr(ctx: stellaParser.ExprContext) throws -> Expr {
 public func buildPattern(ctx: stellaParser.PatternContext) throws -> Pattern {
     switch ctx {
     case let ctx as stellaParser.PatternVariantContext:
-        return try .variant(label: ctx.label.getText()!, buildPattern(ctx: ctx.pattern_))
-        
+        return try .variant(label: ctx.label.getText()!, ctx.pattern().map { try buildPattern(ctx: $0)} )
+
     case let ctx as stellaParser.PatternInlContext:
         return try .inl(pat: buildPattern(ctx: ctx.pattern_))
         
